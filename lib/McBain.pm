@@ -13,7 +13,6 @@ use strict;
 use Brannigan;
 use Carp;
 use File::Spec;
-#use Module::Load;
 use Scalar::Util qw/blessed/;
 
 our $VERSION = "1.000000";
@@ -53,9 +52,9 @@ sub import {
 
 	foreach my $meth (
 		[qw/get GET/],
-		[qw/del DELETE/],
 		[qw/put PUT/],
-		[qw/post POST/]
+		[qw/post POST/],
+		[qw/del DELETE/]
 	) {
 		*{$target.'::'.$meth->[0]} = sub {
 			my $name = shift;
@@ -67,27 +66,32 @@ sub import {
 
 	*{"${target}::call"} = sub {
 		my $class = shift;
+		my $env = __PACKAGE__->generate_env(@_);
+		my $res = $class->forward($env->{NAMESPACE}, $env->{PAYLOAD});
+		return __PACKAGE__->generate_res($env, $res);
+	};
+
+	*{"${target}::forward"} = sub {
+		my ($class, $namespace, $payload) = @_;
 
 		$class = blessed $class
 			if blessed $class;
 
-		my $env = __PACKAGE__->generate_env(@_);
-
-		# $env->{NAMESPACE} is the full name of the method, i.e. <topic>.<method>
+		# $namespace is the full name of the method, i.e. /<topic>/<method>
 		# extract the names of the topic and the method itself from it
-		my $ns = $env->{NAMESPACE};
+		my $ns = $namespace;
 		$ns =~ s{^/}{}; # remove starting slash
 		my ($tn, $mn) = split(/\//, $ns); # topic name, method name
 		if (!$mn) {
 			# this topic
 			$mn = $tn ? "/$tn" : '/';
 			$tn = '/';
-		} elsif ($env->{NAMESPACE} =~ m{/([^/]+)$}) {
+		} elsif ($namespace =~ m{/([^/]+)$}) {
 			# child topic
 			$tn = $`;
 			$mn = "/$1";
 		} else {
-			croak "Illegal namespace $env->{NAMESPACE}";
+			croak "Illegal namespace $namespace";
 		}
 
 		# now find the topic
@@ -109,14 +113,12 @@ sub import {
 		my $method = $topic->{methods}->{$mn};
 
 		# process parameters
-		my $params_ret = Brannigan::process({ params => $method->{params} }, $env->{PAYLOAD});
+		my $params_ret = Brannigan::process({ params => $method->{params} }, $payload);
 
 		croak "Parameters failed validation"
 			if $params_ret->{_rejects};
 
-		my $res = $method->{cb}->($class->_find_root, $params_ret);
-
-		return __PACKAGE__->generate_res($env, $res);
+		return $method->{cb}->($class->_find_root, $params_ret);
 	};
 
 	*{"${target}::_find_root"} = sub {

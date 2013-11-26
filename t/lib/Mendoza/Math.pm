@@ -49,9 +49,9 @@ get factorial => (
 	cb => sub {
 		my ($api, $params) = @_;
 
-		return $params->{num} <= 1 ? 1 : $api->call('/math/mult', {
+		return $params->{num} <= 1 ? 1 : $api->forward('/math/mult', {
 			one => $params->{num},
-			two => $api->call('/math/factorial', { num => $params->{num} - 1 })
+			two => $api->forward('/math/factorial', { num => $params->{num} - 1 })
 		});
 	}
 );
