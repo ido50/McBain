@@ -6,7 +6,7 @@ BEGIN {
 	$ENV{MCBAIN_WITH} ||= 'Directly';
 };
 
-use base "McBain::$ENV{MCBAIN_WITH}";
+use parent "McBain::$ENV{MCBAIN_WITH}";
 use warnings;
 use strict;
 
