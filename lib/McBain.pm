@@ -23,7 +23,7 @@ our %INFO;
 sub import {
 	my $target = caller;
 	return if $target eq 'main';
-	my ($me, $plugin) = @_;
+	my $me = shift;
 	strict->import;
 	warnings->import(FATAL => 'all');
 	return if $INFO{$target};
@@ -32,7 +32,6 @@ sub import {
 
 	$INFO{$target} = {
 		topic => '/', # only the root topic will have this as slash
-		parent => '', # only the root topic will have this empty
 		methods => {},
 		topics => {}
 	};
@@ -65,17 +64,16 @@ sub import {
 	}
 
 	*{"${target}::call"} = sub {
-		my $class = shift;
+		my $self = shift;
 		my $env = __PACKAGE__->generate_env(@_);
-		my $res = $class->forward($env->{NAMESPACE}, $env->{PAYLOAD});
+		my $res = $self->forward($env->{NAMESPACE}, $env->{PAYLOAD});
 		return __PACKAGE__->generate_res($env, $res);
 	};
 
 	*{"${target}::forward"} = sub {
-		my ($class, $namespace, $payload) = @_;
+		my ($self, $namespace, $payload) = @_;
 
-		$class = blessed $class
-			if blessed $class;
+		my $class = blessed $self || $self;
 
 		# $namespace is the full name of the method, i.e. /<topic>/<method>
 		# extract the names of the topic and the method itself from it
@@ -118,20 +116,7 @@ sub import {
 		croak "Parameters failed validation"
 			if $params_ret->{_rejects};
 
-		return $method->{cb}->($class->_find_root, $params_ret);
-	};
-
-	*{"${target}::_find_root"} = sub {
-		my $class = shift;
-
-		$class = blessed $class
-			if blessed $class;
-
-		if ($INFO{$class}->{parent}) {
-			return $INFO{$class}->{parent}->_find_root;
-		} else {
-			return $class;
-		}
+		return $method->{cb}->($self, $params_ret);
 	};
 
 	my %topics = _load_topics($target);
@@ -143,7 +128,6 @@ sub import {
 		require $file;
 
 		$INFO{$pkg}->{topic} = $topic;
-		$INFO{$pkg}->{parent} = $target;
 
 		# add package to parent's topics hash (parent == target)
 		$INFO{$target}->{topics}->{$topic} = $INFO{$pkg};
@@ -151,7 +135,7 @@ sub import {
 }
 
 sub _load_topics {
-	my $base = shift;
+	my ($base, $limit) = @_;
 
 	# this code is based on code from Module::Find
 

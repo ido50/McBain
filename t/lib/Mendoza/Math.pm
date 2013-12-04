@@ -2,7 +2,7 @@ package Mendoza::Math;
 
 use McBain;
 
-get sum => (
+get '/sum' => (
 	description => 'Adds two integers',
 	params => {
 		one => { required => 1, integer => 1 },
@@ -15,7 +15,7 @@ get sum => (
 	}
 );
 
-get diff => (
+get '/diff' => (
 	description => 'Subtracts two integers',
 	params => {
 		one => { required => 1, integer => 1 },
@@ -28,7 +28,7 @@ get diff => (
 	}
 );
 
-get mult => (
+get '/mult' => (
 	description => 'Multiplies two integers',
 	params => {
 		one => { required => 1, integer => 1 },
@@ -41,7 +41,7 @@ get mult => (
 	}
 );
 
-get factorial => (
+get '/factorial' => (
 	description => 'Returns the factorial of a number',
 	params => {
 		num => { required => 1, integer => 1 }
