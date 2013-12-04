@@ -6,6 +6,8 @@ use strict;
 use JSON;
 use Plack::Request;
 
+my $json = JSON->new->utf8->convert_blessed;
+
 sub init {
 	my ($class, $target) = @_;
 
@@ -21,7 +23,7 @@ sub generate_env {
 	return {
 		METHOD => $req->method,
 		NAMESPACE => $req->path,
-		PAYLOAD => $req->content ? decode_json($req->content) : {}
+		PAYLOAD => $req->content ? $json->decode($req->content) : {}
 	};
 }
 
@@ -31,7 +33,7 @@ sub generate_res {
 	$res = { $env->{NAMESPACE} => $res }
 		unless ref $res eq 'HASH';
 
-	return [200, ['Content-Type' => 'application/json; charset=UTF-8'], [encode_json($res)]];
+	return [200, ['Content-Type' => 'application/json; charset=UTF-8'], [$json->encode($res)]];
 }
 
 1;
