@@ -94,21 +94,27 @@ sub import {
 
 		# now find the topic
 		my $topic;
-		unless ($tn eq '/') {
-			# find this topic
-			croak "Topic $tn does not exist"
-				unless exists $INFO{$class}->{topics}->{$tn};
-
-			$topic = $INFO{$class}->{topics}->{$tn};
-		} else {
+		if ($tn eq '/') {
+			# it's this topic
 			$topic = $INFO{$class};
+		} else {
+			# it's a subtopic
+			$topic = _find_subtopic($class, $tn)
+				|| croak "404 Not Found";
 		}
 
 		# and now find the method
-		croak "Topic ".$topic->{topic}." does not have a method name $mn"
-			unless exists $topic->{methods}->{$mn};
+		unless (exists $topic->{methods}->{$mn}) {
+			# maybe we're calling the root of a subtopic
+			$tn = $tn eq '/' ? $mn : $tn.$mn;
+			$mn  = '/';
 
-		my $method = $topic->{methods}->{$mn};
+			$topic = _find_subtopic($class, $tn)
+				|| croak "404 Not Found";
+		}
+
+		my $method = $topic->{methods}->{$mn}
+			|| croak "404 Not Found";
 
 		# process parameters
 		my $params_ret = Brannigan::process({ params => $method->{params} }, $payload);
@@ -164,6 +170,23 @@ sub _load_topics {
 	}
 
 	return %topics;
+}
+
+sub _find_subtopic {
+	my ($class, $tn) = @_;
+
+	my @chain = split(/\//, $tn);
+	shift @chain; # since $tn begins with / first item will be empty
+
+	my $root = $INFO{$class};
+
+	while (scalar @chain) {
+		my $next = '/'.shift(@chain);
+		$root = $root->{topics}->{$next}
+			|| return;
+	}
+
+	return $root;
 }
 
 1;

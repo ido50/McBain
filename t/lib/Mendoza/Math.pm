@@ -2,6 +2,12 @@ package Mendoza::Math;
 
 use McBain;
 
+get '/' => (
+	cb => sub {
+		return "MATH IS AWESOME";
+	}
+);
+
 get '/sum' => (
 	description => 'Adds two integers',
 	params => {
