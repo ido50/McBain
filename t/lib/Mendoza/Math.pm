@@ -47,7 +47,7 @@ get '/mult' => (
 	}
 );
 
-get '/factorial' => (
+post '/factorial' => (
 	description => 'Returns the factorial of a number',
 	params => {
 		num => { required => 1, integer => 1 }
@@ -55,9 +55,9 @@ get '/factorial' => (
 	cb => sub {
 		my ($api, $params) = @_;
 
-		return $params->{num} <= 1 ? 1 : $api->forward('/math/mult', {
+		return $params->{num} <= 1 ? 1 : $api->forward('GET:/math/mult', {
 			one => $params->{num},
-			two => $api->forward('/math/factorial', { num => $params->{num} - 1 })
+			two => $api->forward('POST:/math/factorial', { num => $params->{num} - 1 })
 		});
 	}
 );

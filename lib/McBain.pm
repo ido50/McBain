@@ -28,25 +28,31 @@ sub import {
 	warnings->import(FATAL => 'all');
 	return if $INFO{$target};
 
-	__PACKAGE__->init($target);
-
 	$INFO{$target} = {
 		topic => '/', # only the root topic will have this as slash
+		parent => '', # only the root topic will have this empty
 		methods => {},
 		topics => {}
 	};
 
 	no strict 'refs';
 
+	*{"${target}::is_root"} = sub {
+		return !$INFO{$target}->{parent};
+	};
+
+	__PACKAGE__->init($target);
+
 	*{"${target}::provide"} = sub {
-		my $name = shift;
+		my ($method, $name) = (shift, shift);
 		my %opts = @_;
 
 		$name = '/'.$name
 			unless $name =~ m{^/};
 
 		$INFO{$target}->{methods} ||= {};
-		$INFO{$target}->{methods}->{$name} = \%opts;
+		$INFO{$target}->{methods}->{$name} ||= {};
+		$INFO{$target}->{methods}->{$name}->{$method} = \%opts;
 	};
 
 	foreach my $meth (
@@ -56,22 +62,21 @@ sub import {
 		[qw/del DELETE/]
 	) {
 		*{$target.'::'.$meth->[0]} = sub {
-			my $name = shift;
-			my %opts = @_;
-			$opts{method} = $meth->[1];
-			&{"${target}::provide"}($name, %opts);
+			&{"${target}::provide"}($meth->[1], @_);
 		};
 	}
 
 	*{"${target}::call"} = sub {
 		my $self = shift;
 		my $env = __PACKAGE__->generate_env(@_);
-		my $res = $self->forward($env->{NAMESPACE}, $env->{PAYLOAD});
+		my $res = $self->forward($env->{METHOD}.':'.$env->{NAMESPACE}, $env->{PAYLOAD});
 		return __PACKAGE__->generate_res($env, $res);
 	};
 
 	*{"${target}::forward"} = sub {
-		my ($self, $namespace, $payload) = @_;
+		my ($self, $http_meth_and_namespace, $payload) = @_;
+
+		my ($http_meth, $namespace) = split(/:/, $http_meth_and_namespace);
 
 		my $class = blessed $self || $self;
 
@@ -116,13 +121,16 @@ sub import {
 		my $method = $topic->{methods}->{$mn}
 			|| croak "404 Not Found";
 
+		croak "405 Method Not Allowed"
+			unless exists $method->{$http_meth};
+
 		# process parameters
-		my $params_ret = Brannigan::process({ params => $method->{params} }, $payload);
+		my $params_ret = Brannigan::process({ params => $method->{$http_meth}->{params} }, $payload);
 
 		croak "Parameters failed validation"
 			if $params_ret->{_rejects};
 
-		return $method->{cb}->($self, $params_ret);
+		return $method->{$http_meth}->{cb}->($self, $params_ret);
 	};
 
 	my %topics = _load_topics($target);
@@ -134,6 +142,7 @@ sub import {
 		require $file;
 
 		$INFO{$pkg}->{topic} = $topic;
+		$INFO{$pkg}->{parent} = $target;
 
 		# add package to parent's topics hash (parent == target)
 		$INFO{$target}->{topics}->{$topic} = $INFO{$pkg};

@@ -11,41 +11,44 @@ use JSON;
 sub init {
 	my ($class, $target) = @_;
 
-	no strict 'refs';
+	if ($target->is_root) {
+		no strict 'refs';
+		*{"${target}::work"} = sub {
+			my ($pkg, $host, $port) = @_;
 
-	*{"${target}::work"} = sub {
-		my ($pkg, $host, $port) = @_;
+			$host ||= 'localhost';
+			$port ||= 4730;
 
-		return unless $target->_find_root eq $target;
+			my $worker = Gearman::XS::Worker->new;
+			unless ($worker->add_server($host, $port) == GEARMAN_SUCCESS) {
+				croak "Can't connect to gearman server at $host:$port, ".$worker->error;
+			}
 
-		$host ||= 'localhost';
-		$port ||= 4730;
+			$class->register_functions($worker, $target, $McBain::INFO{$target});
 
-		my $worker = Gearman::XS::Worker->new;
-		unless ($worker->add_server($host, $port) == GEARMAN_SUCCESS) {
-			croak "Can't connect to gearman server at $host:$port, ".$worker->error;
-		}
-
-		$class->register_functions($worker, $target, $McBain::INFO{$target});
-
-		while (1) {
-			$worker->work();
-		}
-	};
+			while (1) {
+				$worker->work();
+			}
+		};
+	}
 }
 
 sub register_functions {
 	my ($class, $worker, $target, $topic) = @_;
 
-	foreach my $meth (keys %{$topic->{methods}}) {
-		my $namespace = $topic->{topic}.$meth;
-		$namespace =~ s{/+}{/}g;
-		unless (
-			$worker->add_function($namespace, 0, sub {
-				$target->call($_[0]);
-			}, {}) == GEARMAN_SUCCESS) {
-				croak "Can't register function $topic->{topic}$meth, ".$worker->error;
+	foreach my $meth_name (keys %{$topic->{methods}}) {
+		my $meth = $topic->{methods}->{$meth_name};
+		foreach my $http_meth (keys %$meth) {
+			my $namespace = $http_meth.':'.$topic->{topic}.$meth_name;
+			$namespace =~ s{/+}{/}g;
+			unless (
+				$worker->add_function($namespace, 0, sub {
+					$target->call($_[0]);
+				}, {}) == GEARMAN_SUCCESS
+			) {
+				croak "Can't register function $namespace, ".$worker->error;
 			}
+		}
 	}
 
 	foreach my $subtopic (keys %{$topic->{topics}}) {
@@ -56,9 +59,14 @@ sub register_functions {
 sub generate_env {
 	my ($self, $job) = @_;
 
+	croak "400 Bad Request"
+		unless $job->function_name =~ m/^(GET|POST|PUT|DELETE):/;
+
+	my ($method, $namespace) = split(/:/, $job->function_name);
+
 	return {
-		METHOD    => 'GET',
-		NAMESPACE => $job->function_name,
+		METHOD    => $method,
+		NAMESPACE => $namespace,
 		PAYLOAD   => $job->workload ? decode_json($job->workload) : {}
 	};
 }

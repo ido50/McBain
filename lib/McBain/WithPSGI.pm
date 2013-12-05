@@ -11,8 +11,10 @@ my $json = JSON->new->utf8->convert_blessed;
 sub init {
 	my ($class, $target) = @_;
 
-	no strict 'refs';
-	push(@{"${target}::ISA"}, 'Plack::Component');
+	if ($target->is_root) {
+		no strict 'refs';
+		push(@{"${target}::ISA"}, 'Plack::Component');
+	}
 }
 
 sub generate_env {
