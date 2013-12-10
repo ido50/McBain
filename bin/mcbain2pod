@@ -1,0 +1,96 @@
+#!/usr/bin/perl -w
+
+use lib './lib';
+use warnings;
+use strict;
+
+use IO::Handle;
+use Getopt::Compact;
+use Module::Load;
+
+my $go = Getopt::Compact->new(
+	args => 'module',
+	struct => [
+		[[qw/I include/], 'specify @INC directory', ':s'],
+		[[qw/o output/], 'output pod to file instead of STDOUT', ':s']
+	]
+);
+
+unless (scalar @ARGV) {
+	print $go->usage;
+	exit 1;
+}
+
+my $opts = $go->opts;
+
+if ($opts->{include}) {
+	push(@INC, $opts->{include});
+}
+
+if ($opts->{output}) {
+	open(OUTPUT, '>', $opts->{output})
+		|| die "Can't open $opts->{output}: $!";
+	STDOUT->fdopen(\*OUTPUT, 'w')
+		|| die "Can't redirect output: $!";
+}
+
+binmode STDOUT, ':encoding(utf8)';
+
+my $api = $ARGV[0];
+
+# okay, try to load that API
+load $api;
+
+# is this really a McBain API?
+die "$api is not a McBain API"
+	unless exists $McBain::INFO{$api};
+
+print "=encoding utf8
+
+=head1 NAME
+
+$api
+
+=head1 USAGE
+
+You can use the $api API in several ways, the easiest being directly
+from Perl code. See L<McBain::Directly> for more information.
+
+A simple example:
+
+	use $api;
+
+	my \$result = $api->call('GET:/some_route', \%params);
+
+You can also load $api as a RESTful web service (with L<McBain::WithPSGI>),
+as a Gearman worker (with L<McBain::WithGearmanXS>), and possibly other
+C<McBain::With*> modules available from CPAN.
+
+=head1 ROUTES
+
+The following routes are provided by this API:
+
+";
+
+my $routes = $McBain::INFO{$api};
+
+foreach my $route (sort keys %$routes) {
+	foreach my $method (sort keys %{$routes->{$route}}) {
+		my $opts = $routes->{$route}->{$method};
+		print "=head2 $method $route\n\n";
+		if ($opts->{description}) {
+			print "$opts->{description}\n\n";
+		} else {
+			print "No description provided\n\n";
+		}
+		if ($opts->{params}) {
+			print "Expects the following parameters:\n\n=over\n\n";
+			foreach my $param (sort keys %{$opts->{params}}) {
+				print "=item * B<$param>: ", join(', ', keys %{$opts->{params}->{$param}}), "\n\n";
+			}
+			print "=back\n\n";
+		}
+	}
+}
+
+print "=cut\n";

@@ -3,6 +3,7 @@ package McBain::WithPSGI;
 use warnings;
 use strict;
 
+use Carp;
 use JSON;
 use Plack::Request;
 
@@ -36,6 +37,16 @@ sub generate_res {
 		unless ref $res eq 'HASH';
 
 	return [200, ['Content-Type' => 'application/json; charset=UTF-8'], [$json->encode($res)]];
+}
+
+sub handle_exception {
+	my ($class, $err) = @_;
+
+	if (ref $err) {
+		return [delete($err->{code}), ['Content-Type' => 'application/json; charset=UTF-8'], [$json->encode($err)]];
+	} else {
+		return [500, ['Content-Type' => 'application/json; charset=UTF-8'], [$json->encode({ error => $err })]];
+	}
 }
 
 1;

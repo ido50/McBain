@@ -15,6 +15,7 @@ use Brannigan;
 use Carp;
 use File::Spec;
 use Scalar::Util qw/blessed/;
+use Try::Tiny;
 
 our $VERSION = "1.000000";
 $VERSION = eval $VERSION;
@@ -78,38 +79,36 @@ sub import {
 	}
 
 	*{"${target}::call"} = sub {
-		my $self = shift;
-		my $env = __PACKAGE__->generate_env(@_);
-		my $res = $self->forward($env->{METHOD}.':'.$env->{NAMESPACE}, $env->{PAYLOAD});
-		return __PACKAGE__->generate_res($env, $res);
+		my ($self, @args) = @_;
+		return try {
+			my $env = __PACKAGE__->generate_env(@args);
+			my $res = $self->forward($env->{METHOD}.':'.$env->{NAMESPACE}, $env->{PAYLOAD});
+			return __PACKAGE__->generate_res($env, $res);
+		} catch {
+			return __PACKAGE__->handle_exception($_, @args);
+		};
 	};
 
 	*{"${target}::forward"} = sub {
 		my ($self, $meth_and_route, $payload) = @_;
-
-		croak "400 Bad Request"
-			unless $meth_and_route =~ m/^[^:]+:[^:]+$/;
 
 		my ($meth, $route) = split(/:/, $meth_and_route);
 
 		$route .= '/'
 			unless $route =~ m{/$};
 
-		#print STDERR "Trying to find $meth $route\n========================\n";
-		#use Data::Dumper; print STDERR join("\n", keys %{$INFO{$root}}), "\n";
-
 		# find this route
 		my $r = $INFO{$root}->{$route}
-			|| croak "404 Not Found";
+			|| confess { code => 404, error => "Route $route does not exist" };
 
 		# does this route have the HTTP method?
-		croak "405 Method Not Allowed"
+		confess { code => 405, error => "Method $meth not available for route $route" }
 			unless exists $r->{$meth};
 
 		# process parameters
 		my $params_ret = Brannigan::process({ params => $r->{$meth}->{params} }, $payload);
 
-		croak "Parameters failed validation"
+		confess { code => 400, error => "Parameters failed validation", rejects => $params_ret->{_rejects} }
 			if $params_ret->{_rejects};
 
 		return $r->{$meth}->{cb}->($self, $params_ret);

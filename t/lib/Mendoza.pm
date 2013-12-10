@@ -14,10 +14,7 @@ get '/' => (
 
 get '/status' => (
 	description => 'Returns the status of the API',
-	cb => sub {
-		use Data::Dumper; print STDERR Dumper(\@_);
-		return shift->status;
-	}
+	cb => sub { shift->status }
 );
 
 1;

@@ -21,7 +21,7 @@ sub init {
 
 			my $worker = Gearman::XS::Worker->new;
 			unless ($worker->add_server($host, $port) == GEARMAN_SUCCESS) {
-				croak "Can't connect to gearman server at $host:$port, ".$worker->error;
+				confess "Can't connect to gearman server at $host:$port, ".$worker->error;
 			}
 
 			$class->register_functions($worker, $pkg, $McBain::INFO{$target});
@@ -46,7 +46,7 @@ sub register_functions {
 					$target->call($_[0]);
 				}, {}) == GEARMAN_SUCCESS
 			) {
-				croak "Can't register function $namespace, ".$worker->error;
+				confess "Can't register function $namespace, ".$worker->error;
 			}
 		}
 	}
@@ -55,8 +55,8 @@ sub register_functions {
 sub generate_env {
 	my ($self, $job) = @_;
 
-	croak "400 Bad Request"
-		unless $job->function_name =~ m/^(GET|POST|PUT|DELETE):/;
+	confess { code => 400, error => "Namespace must match <METHOD>:<ROUTE> where METHOD is one of GET, POST, PUT or DELETE" }
+		unless $job->function_name =~ m/^(GET|POST|PUT|DELETE):[^:]+$/;
 
 	my ($method, $namespace) = split(/:/, $job->function_name);
 
@@ -74,6 +74,12 @@ sub generate_res {
 		unless ref $res eq 'HASH';
 
 	return encode_json($res);
+}
+
+sub handle_exception {
+	my ($class, $err, $job) = @_;
+
+	$job->send_fail;
 }
 
 1;
