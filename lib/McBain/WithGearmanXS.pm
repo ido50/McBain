@@ -24,7 +24,7 @@ sub init {
 				croak "Can't connect to gearman server at $host:$port, ".$worker->error;
 			}
 
-			$class->register_functions($worker, $target, $McBain::INFO{$target});
+			$class->register_functions($worker, $pkg, $McBain::INFO{$target});
 
 			while (1) {
 				$worker->work();
@@ -36,11 +36,11 @@ sub init {
 sub register_functions {
 	my ($class, $worker, $target, $topic) = @_;
 
-	foreach my $meth_name (keys %{$topic->{methods}}) {
-		my $meth = $topic->{methods}->{$meth_name};
-		foreach my $http_meth (keys %$meth) {
-			my $namespace = $http_meth.':'.$topic->{topic}.$meth_name;
-			$namespace =~ s{/+}{/}g;
+	foreach my $route (keys %$topic) {
+		foreach my $meth (keys %{$topic->{$route}}) {
+			my $namespace = $meth.':'.$route;
+			$namespace =~ s!/$!!
+				unless $route eq '/';
 			unless (
 				$worker->add_function($namespace, 0, sub {
 					$target->call($_[0]);
@@ -49,10 +49,6 @@ sub register_functions {
 				croak "Can't register function $namespace, ".$worker->error;
 			}
 		}
-	}
-
-	foreach my $subtopic (keys %{$topic->{topics}}) {
-		$class->register_functions($worker, $target, $topic->{topics}->{$subtopic});
 	}
 }
 

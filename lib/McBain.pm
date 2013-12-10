@@ -6,6 +6,7 @@ BEGIN {
 	$ENV{MCBAIN_WITH} ||= 'Directly';
 };
 
+use lib './lib';
 use parent "McBain::$ENV{MCBAIN_WITH}";
 use warnings;
 use strict;
@@ -28,17 +29,24 @@ sub import {
 	warnings->import(FATAL => 'all');
 	return if $INFO{$target};
 
-	$INFO{$target} = {
-		topic => '/', # only the root topic will have this as slash
-		parent => '', # only the root topic will have this empty
-		methods => {},
-		topics => {}
-	};
+	# find the root of this API (if it's not this class)
+	my $root = _find_root($target);
+
+	# create the routes hash for $root
+	$INFO{$root} ||= {};
+
+	# figure out the topic name from this class
+	my $topic = '/';
+	unless ($target eq $root) {
+		my ($rel_name) = ($target =~ m/^${root}::(.+)$/)[0];
+		$topic = '/'.lc($rel_name);
+		$topic =~ s!::!/!g;
+	}
 
 	no strict 'refs';
 
 	*{"${target}::is_root"} = sub {
-		return !$INFO{$target}->{parent};
+		exists $INFO{$target};
 	};
 
 	__PACKAGE__->init($target);
@@ -49,10 +57,13 @@ sub import {
 
 		$name = '/'.$name
 			unless $name =~ m{^/};
+		$name .= '/'
+			unless $name =~ m{/$};
+		$name = $topic.$name
+			unless $topic eq '/';
 
-		$INFO{$target}->{methods} ||= {};
-		$INFO{$target}->{methods}->{$name} ||= {};
-		$INFO{$target}->{methods}->{$name}->{$method} = \%opts;
+		$INFO{$root}->{$name} ||= {};
+		$INFO{$root}->{$name}->{$method} = \%opts;
 	};
 
 	foreach my $meth (
@@ -74,78 +85,51 @@ sub import {
 	};
 
 	*{"${target}::forward"} = sub {
-		my ($self, $http_meth_and_namespace, $payload) = @_;
+		my ($self, $meth_and_route, $payload) = @_;
 
-		my ($http_meth, $namespace) = split(/:/, $http_meth_and_namespace);
+		croak "400 Bad Request"
+			unless $meth_and_route =~ m/^[^:]+:[^:]+$/;
 
-		my $class = blessed $self || $self;
+		my ($meth, $route) = split(/:/, $meth_and_route);
 
-		# $namespace is the full name of the method, i.e. /<topic>/<method>
-		# extract the names of the topic and the method itself from it
-		my $ns = $namespace;
-		$ns =~ s{^/}{}; # remove starting slash
-		my ($tn, $mn) = split(/\//, $ns); # topic name, method name
-		if (!$mn) {
-			# this topic
-			$mn = $tn ? "/$tn" : '/';
-			$tn = '/';
-		} elsif ($namespace =~ m{/([^/]+)$}) {
-			# child topic
-			$tn = $`;
-			$mn = "/$1";
-		} else {
-			croak "Illegal namespace $namespace";
-		}
+		$route .= '/'
+			unless $route =~ m{/$};
 
-		# now find the topic
-		my $topic;
-		if ($tn eq '/') {
-			# it's this topic
-			$topic = $INFO{$class};
-		} else {
-			# it's a subtopic
-			$topic = _find_subtopic($class, $tn)
-				|| croak "404 Not Found";
-		}
+		#print STDERR "Trying to find $meth $route\n========================\n";
+		#use Data::Dumper; print STDERR join("\n", keys %{$INFO{$root}}), "\n";
 
-		# and now find the method
-		unless (exists $topic->{methods}->{$mn}) {
-			# maybe we're calling the root of a subtopic
-			$tn = $tn eq '/' ? $mn : $tn.$mn;
-			$mn  = '/';
-
-			$topic = _find_subtopic($class, $tn)
-				|| croak "404 Not Found";
-		}
-
-		my $method = $topic->{methods}->{$mn}
+		# find this route
+		my $r = $INFO{$root}->{$route}
 			|| croak "404 Not Found";
 
+		# does this route have the HTTP method?
 		croak "405 Method Not Allowed"
-			unless exists $method->{$http_meth};
+			unless exists $r->{$meth};
 
 		# process parameters
-		my $params_ret = Brannigan::process({ params => $method->{$http_meth}->{params} }, $payload);
+		my $params_ret = Brannigan::process({ params => $r->{$meth}->{params} }, $payload);
 
 		croak "Parameters failed validation"
 			if $params_ret->{_rejects};
 
-		return $method->{$http_meth}->{cb}->($self, $params_ret);
+		return $r->{$meth}->{cb}->($self, $params_ret);
 	};
 
-	my %topics = _load_topics($target);
-	foreach my $pkg (keys %topics) {
-		my $file  = $topics{$pkg}->{file};
-		my $topic = '/'.$topics{$pkg}->{topic};
+	_load_topics($target);
+}
 
-		# require the package
-		require $file;
+sub _find_root {
+	my $class = shift;
 
-		$INFO{$pkg}->{topic} = $topic;
-		$INFO{$pkg}->{parent} = $target;
-
-		# add package to parent's topics hash (parent == target)
-		$INFO{$target}->{topics}->{$topic} = $INFO{$pkg};
+	if ($class =~ m/::[^:]+$/) {
+		# we have a parent, and it might
+		# be the root. otherwise the root
+		# is us
+		my $parent = _find_root($`);
+		return $parent || $class;
+	} else {
+		# we don't have a parent, so we are the root
+		return $class;
 	}
 }
 
@@ -158,8 +142,6 @@ sub _load_topics {
 
 	my @inc_dirs = map { File::Spec->catdir($_, $pkg_dir) } @INC;
 
-	my %topics;
-
 	foreach my $inc_dir (@inc_dirs) {
 		next unless -d $inc_dir;
 
@@ -168,34 +150,13 @@ sub _load_topics {
 		closedir DIR;
 
 		foreach my $file (@pms) {
-			my $pkg = $file; $pkg =~ s/\.pm$//; $pkg = join('::', File::Spec->splitdir($pkg));
-			my $topic = lc($pkg); $topic =~ s/::/./g;
+			my $pkg = $file;
+			$pkg =~ s/\.pm$//;
+			$pkg = join('::', File::Spec->splitdir($pkg));
 
-			$topics{$base.'::'.$pkg} = {
-				file => File::Spec->catdir($inc_dir, $file),
-				topic => $topic
-			};
+			require File::Spec->catdir($inc_dir, $file);
 		}
 	}
-
-	return %topics;
-}
-
-sub _find_subtopic {
-	my ($class, $tn) = @_;
-
-	my @chain = split(/\//, $tn);
-	shift @chain; # since $tn begins with / first item will be empty
-
-	my $root = $INFO{$class};
-
-	while (scalar @chain) {
-		my $next = '/'.shift(@chain);
-		$root = $root->{topics}->{$next}
-			|| return;
-	}
-
-	return $root;
 }
 
 1;
