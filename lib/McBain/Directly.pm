@@ -4,7 +4,6 @@ use warnings;
 use strict;
 
 use Carp;
-use JSON;
 
 sub init { 1 }
 

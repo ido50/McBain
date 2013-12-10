@@ -1,11 +1,10 @@
 #!/usr/bin/perl -w
 
-use lib './lib';
 use warnings;
 use strict;
 
-use IO::Handle;
 use Getopt::Compact;
+use IO::Handle;
 use Module::Load;
 
 my $go = Getopt::Compact->new(
