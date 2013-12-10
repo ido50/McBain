@@ -29,8 +29,8 @@ McBain - Framework for building portable, auto-validating and self-documenting A
 
 	use McBain; # imports strict and warnings for you
 
-	get '/add' => (
-		description => 'Adds two integers',
+	get '/multiply' => (
+		description => 'Multiplies two integers',
 		params => {
 			one => { required => 1, integer => 1 },
 			two => { required => 1, integer => 1 }
@@ -39,6 +39,28 @@ McBain - Framework for building portable, auto-validating and self-documenting A
 			my ($api, $params) = @_;
 
 			return $params->{one} + $params->{two};
+		}
+	);
+
+	post '/factorial' => (
+		description => 'Calculates the factorial of an integer',
+		params => {
+			num => { required => 1, integer => 1, min_value => 0 }
+		},
+		cb => sub {
+			my ($api, $params) = @_;
+
+			# note how this route both uses another
+			# route and calls itself recursively
+
+			if ($params->{num} <= 1) {
+				return 1;
+			} else {
+				return $api->forward('GET:/multiply', {
+					one => $params->{num},
+					two => $api->forward('POST:/factorial', { num => $params->{num} - 1 })
+				});
+			}
 		}
 	);
 
@@ -56,7 +78,7 @@ C<McBain> is extremely lightweight, with minimal dependencies on non-core module
 
 =item * B<Portability>
 
-C<McBain> APIs can be run/used in a variety of ways with absolutely no changes of code. For example, they can be used B<directly from Perl code> (see L<McBain::Directly>), as fully fledged B<RESTful PSGI web services> (see L<McBain::WithPSGI>), or as B<Gearman workers> (see L<McBain::WithGearmanXS>). Seriously, no change of code required. More C<McBain> runners are yet to come, and you can create your own, god knows I don't have the time or motivation or talent. Why should I do it for you anyway?
+C<McBain> APIs can be run/used in a variety of ways with absolutely no changes of code. For example, they can be used B<directly from Perl code> (see L<McBain::Directly>), as fully fledged B<RESTful PSGI web services> (see L<McBain::WithPSGI>), or as B<Gearman workers> (see L<McBain::WithGearmanXS>). Seriously, no change of code required. More L<McBain runners/"MCBAIN RUNNERS"> are yet to come, and you can create your own, god knows I don't have the time or motivation or talent. Why should I do it for you anyway?
 
 =item * B<Auto-Validation>
 
@@ -75,6 +97,79 @@ APIs written with C<McBain> are modular and flexible. You can make them object o
 It'll do that too, just give it a chance.
 
 =back
+
+=head1 FUNCTIONS
+
+The following functions are exported:
+
+=head2 provide( $method, $route, %opts )
+
+Define a method and a route. C<$method> is one of C<GET>, C<POST>, C<PUT>
+or C<DELETE>. C<$route> is a string that starts with a forward slash,
+like a path in a URI. C<%opts> can hold the following keys (only C<cb>
+is required):
+
+=over
+
+=item * description
+
+A short description of the method and what it does.
+
+=item * params
+
+A hash-ref of parameters in the syntax of L<Brannigan> (see L<Brannigan::Validations>
+for a complete references).
+
+=item * cb
+
+An anonymous subroutine (or a subroutine reference) to run when the route is
+called. The method will receive the root topic class (or object, if the
+topics are written in object oriented style), and a hash-ref of parameters.
+
+=back
+
+=head2 get( $route, %opts )
+
+Shortcut for C<provide( 'GET', $route, %opts )>
+
+=head2 post( $route, %opts )
+
+Shortcut for C<provide( 'POST', $route, %opts )>
+
+=head2 put( $route, %opts )
+
+Shortcut for C<provide( 'PUT', $route, %opts )>
+
+=head2 del( $route, %opts )
+
+Shortcut for C<provide( 'DELETE', $route, %opts )>
+
+=head1 METHODS
+
+The following methods will be available on importing classes/objects:
+
+=head2 call( @args )
+
+Calls the API, requesting the execution of a certain route. This is the
+main way your API is used. The arguments it expects to receive and its
+behavior are dependent on the L<McBain runner/"MCBAIN RUNNERS"> used. Refer to the docs
+of the runner you wish to use for more information.
+
+=head2 forward( $namespace, [ \%params ] )
+
+For usage from within API methods; this simply calls a method of the
+the API with the provided parameters (if any) and returns the result.
+With C<forward()>, an API method can call other API methods or even
+itself (for recursive operations).
+
+C<$namespace> is the method and route to execute, in the format C<< <METHOD>:<ROUTE> >>,
+where C<METHOD> is one of C<GET>, C<POST>, C<PUT>, C<DELETE>, and C<ROUTE>
+starts with a forward slash.
+
+=head2 is_root( )
+
+Returns a true value if the module is the root topic of the API.
+Mostly used internally and in L<McBain runner/"MCBAIN RUNNERS"> modules.
 
 =cut
 
@@ -175,6 +270,10 @@ sub import {
 	_load_topics($target);
 }
 
+# _find_root( $current_class )
+# -- finds the root topic of the API, which might
+#    very well be the module we're currently importing into
+
 sub _find_root {
 	my $class = shift;
 
@@ -189,6 +288,11 @@ sub _find_root {
 		return $class;
 	}
 }
+
+# _load_topics( $base, $limit )
+# -- finds and loads the child topics of the class we're
+#    currently importing into, automatically requiring
+#    them and thus importing McBain into them as well
 
 sub _load_topics {
 	my ($base, $limit) = @_;
@@ -216,13 +320,105 @@ sub _load_topics {
 	}
 }
 
+=head1 MCBAIN RUNNERS
+
+A runner module is in charge of loading C<McBain> APIs in a specific way.
+The default runner, L<McBain::Directly>, is the simplest runner there is,
+and is meant for using APIs directly from Perl code.
+
+When a C<McBain> API is loaded, the selected runner module is actually
+set as the base class of C<McBain>, thus tweaking its behavior. The runner
+is in charge of whatever heavy lifting is required in order to turn
+your API into a "service", or an "app", or whatever it is you think your
+API needs to be.
+
+The following runners are currently available:
+
+=over
+
+=item * L<McBain::Directly> - Directly use an API from Perl code.
+
+=item * L<McBain::WithPSGI> - Turn an API into a Plack based, JSON-to-JSON
+RESTful web application.
+
+=item * L<McBain::WithGearmanXS> - Turn an API into a JSON-to-JSON
+Gearman worker.
+
+=back
+
+The latter two completely change the way your API is used, and yet you can
+see their code is very short.
+
+You can easily create your own runner modules, so that your APIs can be used
+in different ways. A runner module needs to implement the following interface:
+
+=head2 init( $runner_class, $target_class )
+
+This method is called when C<McBain> is first imported into an API topic.
+C<$target_class> will hold the name of the class currently being imported to.
+
+You can do whatever initializations you need to do here, possibly manipulating
+the target class directly. You will probably only want to do this on the root
+topic, which is why L</"is_root( )"> is available on C<$target_class>.
+
+You can look at C<WithPSGI> and C<WithGearmanXS> to see how they're using the
+C<init()> method. For example, in C<WithPSGI>, L<Plack::Component> is added
+to the C<@ISA> array of the root topic, so that it turns into a Plack app. In
+C<WithGearmanXS>, the C<init()> method is used to define a C<work()> method
+on the root topic, so that your API can run as any standard Gearman worker.
+
+=head2 generate_env( $runner_class, @call_args )
+
+This method receives whatever arguments were passed to the L</"call( @args )">
+method. It is in charge of returning a standard hash-ref that C<McBain> can use
+in order to determine which route the caller wants to execute, and with what
+parameters. Remember that the way C<call()> is invoked depends on the runner used.
+
+The hash-ref returned I<must> have the following key-value pairs:
+
+=over
+
+=item * ROUTE - The route to execute (string).
+
+=item * METHOD - The method to call on the route (string).
+
+=item * PAYLOAD - A hash-ref of parameters to provide for the method. If no parameters
+are provided, an empty hash-ref should be given.
+
+=back
+
+The returned hash-ref is called C<$env>, inspired by L<PSGI>.
+
+=head2 generate_res( $runner_class, \%env, $result )
+
+This method formats the result from a route before returning it to the caller.
+It receives the C<$env> hash-ref (if needed), and the result from the route. In the
+C<WithPSGI> runner, for example, this method encodes the result into JSON and 
+returns a proper PSGI response array-ref.
+
+=head2 handle_exception( $runner_class, $error, @args )
+
+This method will be called whenever a route raises an exception, or otherwise your code
+fails. The C<$error> variable will either be a standard L<exception hash-ref/"EXCEPTIONS">
+(if an exception was thrown directly), or a scalar if it was Perl or some module you use
+that failed, so it's the responsibility of this method to check.
+
+The method should format the error before returning it to the user, similar to what
+C<generate_res()> above performs, but it allows you to handle exceptions gracefully.
+
+Whatever arguments were provided to C<call()> will be provided to this method as-is,
+so that you can inspect or use them if need be. C<WithGearmanXS>, for example,
+will get the L<Gearman::XS::Job> object and call the C<send_fail()> method on it,
+to properly indicate the job failed.
+
 =head1 CONFIGURATION AND ENVIRONMENT
    
 C<McBain> itself requires no configuration files or environment variables.
 However, when using/running APIs written with C<McBain>, the C<MCBAIN_WITH>
 environment variable might be needed to tell C<McBain> the name of the
-runner module to use. The default value is "Directly", so L<McBain::Directly>
-is used. See the various C<McBain> runner modules for more information.
+L<runner module/"MCBAIN RUNNERS"> to use. The default value is "Directly",
+so L<McBain::Directly> is used. See the various C<McBain> runner modules
+for more information.
  
 =head1 DEPENDENCIES
  

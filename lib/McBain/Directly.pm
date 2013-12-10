@@ -29,7 +29,9 @@ sub generate_res {
 }
 
 sub handle_exception {
-	confess $_[1];
+	my ($class, $err) = @_;
+
+	confess $err;
 }
 
 1;
