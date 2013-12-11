@@ -78,7 +78,7 @@ C<McBain> is extremely lightweight, with minimal dependencies on non-core module
 
 =item * B<Portability>
 
-C<McBain> APIs can be run/used in a variety of ways with absolutely no changes of code. For example, they can be used B<directly from Perl code> (see L<McBain::Directly>), as fully fledged B<RESTful PSGI web services> (see L<McBain::WithPSGI>), or as B<Gearman workers> (see L<McBain::WithGearmanXS>). Seriously, no change of code required. More L<McBain runners/"MCBAIN RUNNERS"> are yet to come, and you can create your own, god knows I don't have the time or motivation or talent. Why should I do it for you anyway?
+C<McBain> APIs can be run/used in a variety of ways with absolutely no changes of code. For example, they can be used B<directly from Perl code> (see L<McBain::Directly>), as fully fledged B<RESTful PSGI web services> (see L<McBain::WithPSGI>), or as B<Gearman workers> (see L<McBain::WithGearmanXS>). Seriously, no change of code required. More L<McBain runners|"MCBAIN RUNNERS"> are yet to come, and you can create your own, god knows I don't have the time or motivation or talent. Why should I do it for you anyway?
 
 =item * B<Auto-Validation>
 
@@ -152,7 +152,7 @@ The following methods will be available on importing classes/objects:
 
 Calls the API, requesting the execution of a certain route. This is the
 main way your API is used. The arguments it expects to receive and its
-behavior are dependent on the L<McBain runner/"MCBAIN RUNNERS"> used. Refer to the docs
+behavior are dependent on the L<McBain runner|"MCBAIN RUNNERS"> used. Refer to the docs
 of the runner you wish to use for more information.
 
 =head2 forward( $namespace, [ \%params ] )
@@ -169,7 +169,7 @@ starts with a forward slash.
 =head2 is_root( )
 
 Returns a true value if the module is the root topic of the API.
-Mostly used internally and in L<McBain runner/"MCBAIN RUNNERS"> modules.
+Mostly used internally and in L<McBain runner|"MCBAIN RUNNERS"> modules.
 
 =cut
 
@@ -199,16 +199,26 @@ sub import {
 
 	no strict 'refs';
 
+	# export the is_root() subroutine to the target topic,
+	# so that it knows whether it is the root of the API
+	# or not
 	*{"${target}::is_root"} = sub {
 		exists $INFO{$target};
 	};
 
+	# let the runner module do needed initializations,
+	# as the init method usually needs the is_root subroutine,
+	# this statement must come after exporting is_root()
 	__PACKAGE__->init($target);
 
+	# export the provide subroutine to the target topic,
+	# so that it can define routes and methods.
 	*{"${target}::provide"} = sub {
 		my ($method, $name) = (shift, shift);
 		my %opts = @_;
 
+		# make sure the route starts and ends
+		# with a slash, and prefix it with the topic
 		$name = '/'.$name
 			unless $name =~ m{^/};
 		$name .= '/'
@@ -220,6 +230,8 @@ sub import {
 		$INFO{$root}->{$name}->{$method} = \%opts;
 	};
 
+	# export shortcuts to the provide() subroutine
+	# per http methods
 	foreach my $meth (
 		[qw/get GET/],
 		[qw/put PUT/],
@@ -231,22 +243,37 @@ sub import {
 		};
 	}
 
+	# export the call method, the one that actually
+	# executes API methods
 	*{"${target}::call"} = sub {
 		my ($self, @args) = @_;
 		return try {
+			# ask the runner module to generate a standard
+			# env hash-ref
 			my $env = __PACKAGE__->generate_env(@args);
+
+			# handle the request
 			my $res = $self->forward($env->{METHOD}.':'.$env->{NAMESPACE}, $env->{PAYLOAD});
+
+			# ask the runner module to generate an appropriate
+			# response with the result
 			return __PACKAGE__->generate_res($env, $res);
 		} catch {
+			# an exception was caught, ask the runner module
+			# to format it as it needs
 			return __PACKAGE__->handle_exception($_, @args);
 		};
 	};
 
+	# export the forward method, which is both used internally
+	# in call(), and can be used by API authors within API
+	# methods
 	*{"${target}::forward"} = sub {
 		my ($self, $meth_and_route, $payload) = @_;
 
 		my ($meth, $route) = split(/:/, $meth_and_route);
 
+		# make sure route ends with a slash
 		$route .= '/'
 			unless $route =~ m{/$};
 
@@ -267,6 +294,8 @@ sub import {
 		return $r->{$meth}->{cb}->($self, $params_ret);
 	};
 
+	# we're done with exporting, now lets try to load all
+	# child topics (if any), and collect their method definitions
 	_load_topics($target);
 }
 
@@ -319,6 +348,161 @@ sub _load_topics {
 		}
 	}
 }
+
+=head1 MANUAL
+
+=head2 ANATOMY OF AN API
+
+Writing an API with C<McBain> is easy. The syntax is short and easy to remember,
+and the feature list is just what it needs to be - short and sweet.
+
+The main idea of a C<McBain> API is this: a client requests the execution of a
+method provided by the API, sending a hash of parameters. The API then executes the
+method with the client's parameters, and produces a response in the format of a
+hash. So basically, a C<McBain> API is a hash-in hash-out interface, at least
+when L<used directly|McBain::Directly>. Every L<runner module|"MCBAIN RUNNERS">
+will enforce a different format. For example, the L<PSGI|McBain::WithPSGI> and
+L<Gearman::XS|McBain::WithGearmanXS> runners are both JSON-in JSON-out interfaces.
+
+A C<McBain> API is built of one or more B<topics>, in a hierarchical structure.
+A topic is a class that provides methods that are categorically similar. For
+example, an API might have a topic called "math" that provides math-related
+methods such as add, multiply, divide, etc.
+
+Since topics are hierarchical, every API will have a root topic, which may have
+zero or more child topics. The root topic if where your API begins, and it's
+decision how to utilize it. If your API is short and simple, with methods that
+cannot be categorized into different topics, then the entire API can live within the
+root topic itself, with no child topics at all. If, however, you're building a
+larger API, then the root topic might be empty, or it can provide general-purpose
+methods that do not particularly fit in a specific topic, for example maybe a status
+method that returns the status of the service, or an authentication method.
+
+The name of a topic is calculated from the name of the package itself. The root
+topic is always called C</> (forward slash), and its child topics are named
+like their package names, in lowercase, relative to the root topic, with C</>
+as a separator instead of Perl's C<::>, and starting with a slash.
+For example, lets look at the following API packages:
+
+	MyAPI				- the root topic, will be called "/"
+	MyAPI::Math			- a child topic, will be called "/math"
+	MyAPI::Math::Constants	- a child-of-child, will be called "/math/constants"
+	MyAPI::Strings		- a child topic, will be called "/strings"
+
+You will notice that the naming of the topics is similar to paths in HTTP URIs.
+This is by design, since I wrote C<McBain> mostly for writing web applications
+(with the L<PSGI|McBain::WithPSGI> runner), and the RESTful architecture fits
+well with APIs whether they are HTTP-based or not.
+
+=head2 CREATING TOPICS
+
+To create a topic package, all you need to do is:
+
+	use McBain;
+
+This will import C<McBain> functions into the package, register the package
+as a topic (possibly the root topic), and attempt to load all child topics, if there
+are any. For convenience, C<McBain> will also import L<strict> and L<warnings> for
+you.
+
+Notice that using C<McBain> doesn't make your package an OO class. If you want your
+API to be object oriented, you are free to form your classes however you want, for
+example with L<Moo> or L<Moose>:
+
+	package MyAPI;
+
+	use McBain;
+	use Moo;
+
+	has 'some_attr' => ( is => 'ro' );
+
+	1;
+
+=head2 CREATING ROUTES AND METHODS
+
+The resemblance with HTTP continues as we delve further into methods themselves. An API
+topic defines B<routes>, and one or more B<methods> that can be executed on every
+route. Just like HTTP, these methods are C<GET>, C<POST>, C<PUT> and C<DELETE>.
+
+Route names are like topic names. They begin with a slash, and every topic I<can>
+have a root route which is just called C</>. Every method defined on a route
+will have a complete name (or path, if you will), in the format
+C<< <METHOD_NAME>:<TOPIC_NAME><ROUTE_NAME> >>. For example, let's say we have a
+topic called C</math>, and this topic has a route called C</divide>, with one
+C<GET> method defined on this route. The complete name (or path) of this method
+will be C<GET:/math/divide>.
+
+By using this structure and semantics, it is easy to create CRUD interfaces. Lets
+say your API has a topic called C</articles>. This topic can have the following
+routes and methods:
+
+	POST:/articles/		- Create a new article (root route /)
+	GET:/articles/<ID>	- Read an article
+	PUT:/articles/<ID>	- Update an article
+	DELETE:/articles/<ID>	- Delete an article
+
+Methods are defined using the L<get()|"get( $route, %opts )">, L<post()|"post( $route, %opts )">,
+L<put()|"put( $route, %opts )"> and L<del()|"del( $route, %opts )"> subroutines.
+The syntax is similar to L<Moose>'s antlers:
+
+	get '/multiply' => (
+		description => 'Multiplies two integers',
+		params => {
+			a => { required => 1, integer => 1 },
+			b => { required => 1, integer => 1 }
+		},
+		cb => sub {
+			my ($api, $params) = @_;
+
+			return $params->{a} * $params->{b};
+		}
+	);
+
+Of the three keys above (C<description>, C<params> and C<cb>), only C<cb>
+is required. It takes the actual subroutine to execute when the method is
+called. The subroutine will get two arguments: first, the root topic (either
+its package name, or its object, if you're creating an object oriented API),
+and a hash-ref of parameters provided to the method (if any).
+
+You can provide C<McBain> with a short C<description> of the method, so that
+C<McBain> can use it when documenting the API with L<mcbain2pod>.
+
+You can also tell C<McBain> which parameters your method takes. The C<params>
+key will take a hash-ref of parameters, in the format defined by L<Brannigan>
+(see L<Brannigan::Validations> for a complete references). These will be both
+enforced and documented.
+
+=head2 CALLING METHODS FROM WITHIN METHODS
+
+Methods are allowed to call other methods (whether in the same route or not),
+and even call themselves recursively. This can be accomplished easily with
+the L<forward()|"forward( $namespace, [ \%params ] )"> method. For example:
+
+	get '/factorial => (
+		description => 'Calculates the factorial of a number',
+		params => {
+			num => { required => 1, integer => 1 }
+		},
+		cb => sub {
+			my ($api, $params) = @_;
+
+			if ($params->{num} <= 1) {
+				return 1;
+			} else {
+				return $api->forward('GET:/multiply', {
+					one => $params->{num},
+					two => $api->forward('GET:/factorial', { num => $params->{num} - 1 })
+				});
+			}
+		}
+	);
+
+In the above example, notice how the C<GET:/factorial> method calls both
+C<GET:/multiply> and itself.
+
+=head2 EXCEPTIONS
+
+TODO
 
 =head1 MCBAIN RUNNERS
 
@@ -399,7 +583,7 @@ returns a proper PSGI response array-ref.
 =head2 handle_exception( $runner_class, $error, @args )
 
 This method will be called whenever a route raises an exception, or otherwise your code
-fails. The C<$error> variable will either be a standard L<exception hash-ref/"EXCEPTIONS">
+fails. The C<$error> variable will either be a standard L<exception hash-ref|"EXCEPTIONS">
 (if an exception was thrown directly), or a scalar if it was Perl or some module you use
 that failed, so it's the responsibility of this method to check.
 
@@ -416,7 +600,7 @@ to properly indicate the job failed.
 C<McBain> itself requires no configuration files or environment variables.
 However, when using/running APIs written with C<McBain>, the C<MCBAIN_WITH>
 environment variable might be needed to tell C<McBain> the name of the
-L<runner module/"MCBAIN RUNNERS"> to use. The default value is "Directly",
+L<runner module|"MCBAIN RUNNERS"> to use. The default value is "Directly",
 so L<McBain::Directly> is used. See the various C<McBain> runner modules
 for more information.
  
