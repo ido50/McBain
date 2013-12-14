@@ -14,5 +14,17 @@ get '/pi' => (
 	}
 );
 
+get '/(golden_ratio|euler\'s_number)' => (
+	cb => sub {
+		my ($self, $params, $constant) = @_;
+
+		if ($constant eq 'golden_ratio') {
+			return 1.61803398874;
+		} else {
+			return 2.71828;
+		}
+	}
+);
+
 1;
 __END__

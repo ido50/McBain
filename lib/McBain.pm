@@ -253,7 +253,7 @@ sub import {
 			my $env = __PACKAGE__->generate_env(@args);
 
 			# handle the request
-			my $res = $self->forward($env->{METHOD}.':'.$env->{NAMESPACE}, $env->{PAYLOAD});
+			my $res = $self->forward($env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
 
 			# ask the runner module to generate an appropriate
 			# response with the result
@@ -261,7 +261,14 @@ sub import {
 		} catch {
 			# an exception was caught, ask the runner module
 			# to format it as it needs
-			return __PACKAGE__->handle_exception($_, @args);
+			my $exp;
+			if (ref $_ && ref $_ eq 'HASH' && exists $_->{code} && exists $_->{error}) {
+				$exp = $_;
+			} else {
+				$exp = { code => 500, error => $_ };
+			}
+
+			return __PACKAGE__->handle_exception($exp, @args);
 		};
 	};
 
@@ -277,9 +284,22 @@ sub import {
 		$route .= '/'
 			unless $route =~ m{/$};
 
-		# find this route
-		my $r = $INFO{$root}->{$route}
-			|| confess { code => 404, error => "Route $route does not exist" };
+		my @captures;
+
+		# is there a direct route that equals the request?
+		my $r = $INFO{$root}->{$route};
+
+		# if not, is there a regex route that does?
+		unless ($r) {
+			foreach (keys %{$INFO{$root}}) {
+				next unless @captures = ($route =~ m/^$_$/);
+				$r = $INFO{$root}->{$_};
+				last;
+			}
+		}
+
+		confess { code => 404, error => "Route $route not found" }
+			unless $r;
 
 		# does this route have the HTTP method?
 		confess { code => 405, error => "Method $meth not available for route $route" }
@@ -291,7 +311,7 @@ sub import {
 		confess { code => 400, error => "Parameters failed validation", rejects => $params_ret->{_rejects} }
 			if $params_ret->{_rejects};
 
-		return $r->{$meth}->{cb}->($self, $params_ret);
+		return $r->{$meth}->{cb}->($self, $params_ret, @captures);
 	};
 
 	# we're done with exporting, now lets try to load all
@@ -358,11 +378,11 @@ and the feature list is just what it needs to be - short and sweet.
 
 The main idea of a C<McBain> API is this: a client requests the execution of a
 method provided by the API, sending a hash of parameters. The API then executes the
-method with the client's parameters, and produces a response in the format of a
-hash. So basically, a C<McBain> API is a hash-in hash-out interface, at least
-when L<used directly|McBain::Directly>. Every L<runner module|"MCBAIN RUNNERS">
-will enforce a different format. For example, the L<PSGI|McBain::WithPSGI> and
-L<Gearman::XS|McBain::WithGearmanXS> runners are both JSON-in JSON-out interfaces.
+method with the client's parameters, and produces a response. Every L<runner module|"MCBAIN RUNNERS">
+will enforce a different response format (and even request format). When the API is
+L<used directly|McBain::Directly>, for example, whatever the API produces is returned as
+is. The L<PSGI|McBain::WithPSGI> and L<Gearman::XS|McBain::WithGearmanXS> runners,
+however, are both JSON-in JSON-out interfaces.
 
 A C<McBain> API is built of one or more B<topics>, in a hierarchical structure.
 A topic is a class that provides methods that are categorically similar. For
@@ -433,13 +453,14 @@ C<GET> method defined on this route. The complete name (or path) of this method
 will be C<GET:/math/divide>.
 
 By using this structure and semantics, it is easy to create CRUD interfaces. Lets
-say your API has a topic called C</articles>. This topic can have the following
+say your API has a topic called C</articles>, that deals with articles in your
+blog. Every article has an integer ID. The C</articles> topic can have the following
 routes and methods:
 
 	POST:/articles/		- Create a new article (root route /)
-	GET:/articles/<ID>	- Read an article
-	PUT:/articles/<ID>	- Update an article
-	DELETE:/articles/<ID>	- Delete an article
+	GET:/articles/(\d+)	- Read an article
+	PUT:/articles/(\d+)	- Update an article
+	DELETE:/articles/(\d+)	- Delete an article
 
 Methods are defined using the L<get()|"get( $route, %opts )">, L<post()|"post( $route, %opts )">,
 L<put()|"put( $route, %opts )"> and L<del()|"del( $route, %opts )"> subroutines.
@@ -472,6 +493,33 @@ key will take a hash-ref of parameters, in the format defined by L<Brannigan>
 (see L<Brannigan::Validations> for a complete references). These will be both
 enforced and documented.
 
+As you may have noticed in the C</articles> example, routes can be defined using
+regular expressions. This is useful for creating proper RESTful URLs:
+
+	# in topic /articles
+
+	get '/(\d+)' => (
+		description => 'Returns an article by its integer ID',
+		cb => sub {
+			my ($api, $params, $id) = @_;
+
+			return $api->db->get_article($id);
+		}
+	);
+
+If the regular expression contains L<captures|perlpod/"Capture groups">, and
+a call to the API matches the regular expressions, the values captured will
+be passed to the method, after the parameters hash-ref (even if the method
+does not define parameters, in which case the parameters hash-ref will be
+empty - this may change in the future).
+
+It is worth understanding how C<McBain> builds the regular expression. In the
+above example, the topic is C</articles>, and the route is C</(\d+)>. Internally,
+the generated regular expression will be C<^/articles/(\d+)$>. Notice how the topic
+and route are concatenated, and how the C<^> and C<$> metacharacters are added to
+the beginning and end of the regex, respectively. This means it is impossible to
+create partial regexes, which only pose problems in my experience.
+
 =head2 CALLING METHODS FROM WITHIN METHODS
 
 Methods are allowed to call other methods (whether in the same route or not),
@@ -502,7 +550,32 @@ C<GET:/multiply> and itself.
 
 =head2 EXCEPTIONS
 
-TODO
+C<McBain> APIs handle errors in a graceful way, returning proper error
+responses to callers. As always, the way errors are returned depends on
+the L<runner module|"MCBAIN RUNNERS"> used. When used directly from Perl
+code, McBain will L<confess|Carp> (i.e. die) with a hash-ref consisting
+of two keys:
+
+=over
+
+=item * C<code> - An HTTP status code indicating the type of the error (for
+example 404 if the route doesn't exist, 405 if the route exists but the method
+is not allowed, 400 if parameters failed validation, etc.).
+
+=item * C<error> - The text/description of the error.
+
+=back
+
+Depending on the type of the error, more keys might be added to the exception.
+For example, the parameters failed validation error will also include a C<rejects>
+key holding L<Brannigan>'s standard rejects hash, describing which parameters failed
+validation.
+
+When writing APIs, you are encouraged to return exceptions in this format to
+ensure proper handling by C<McBain>. If C<McBain> encounters an exception
+that does not conform to this format, it will generate an exception with
+C<code> 500 (indicating "Internal Server Error"), and the C<error> key will
+hold the exception as is.
 
 =head1 MCBAIN RUNNERS
 
@@ -532,6 +605,11 @@ Gearman worker.
 
 The latter two completely change the way your API is used, and yet you can
 see their code is very short.
+
+C<McBain> knows which runner module to use by the value of the C<MCBAIN_WITH>
+environment variable (i.e. C<$ENV{MCBAIN_WITH}>). For example, if the value
+of the variable is C<WithPSGI>, then C<McBain> will use C<McBain::WithPSGI>
+as the runner module.
 
 You can easily create your own runner modules, so that your APIs can be used
 in different ways. A runner module needs to implement the following interface:
@@ -583,9 +661,8 @@ returns a proper PSGI response array-ref.
 =head2 handle_exception( $runner_class, $error, @args )
 
 This method will be called whenever a route raises an exception, or otherwise your code
-fails. The C<$error> variable will either be a standard L<exception hash-ref|"EXCEPTIONS">
-(if an exception was thrown directly), or a scalar if it was Perl or some module you use
-that failed, so it's the responsibility of this method to check.
+fails. The C<$error> variable will always be a standard L<exception hash-ref|"EXCEPTIONS">,
+with C<code> and C<error> keys, and possibly more. Read the discussion above.
 
 The method should format the error before returning it to the user, similar to what
 C<generate_res()> above performs, but it allows you to handle exceptions gracefully.
@@ -639,8 +716,6 @@ The command line utility, L<mcbain2pod>, depends on the following CPAN modules:
 None reported.
 
 =head1 BUGS AND LIMITATIONS
-
-No bugs have been reported.
 
 Please report any bugs or feature requests to
 C<bug-McBain@rt.cpan.org>, or through the web interface at

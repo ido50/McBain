@@ -9,7 +9,7 @@ get '/' => (
 );
 
 get '/sum' => (
-	description => 'Adds two integers',
+	description => 'Adds two integers from params',
 	params => {
 		one => { required => 1, integer => 1 },
 		two => { required => 1, integer => 1 }
@@ -18,6 +18,15 @@ get '/sum' => (
 		my ($api, $params) = @_;
 
 		return $params->{one} + $params->{two};
+	}
+);
+
+get '/sum/(\d+)/(\d+)' => (
+	description => 'Adds two integers from path',
+	cb => sub {
+		my ($api, $params, $one, $two) = @_;
+
+		return $one + $two;
 	}
 );
 
