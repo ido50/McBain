@@ -9,4 +9,4 @@ use Mendoza;
 
 my $app = Mendoza->new;
 
-$app->work('localhost', 4730);
+$app->work();

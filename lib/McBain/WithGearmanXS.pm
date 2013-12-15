@@ -65,13 +65,25 @@ hash-ref will have one key - holding the method's name, with whatever was return
 method as its value. For example, if method C<GET:/divide> in topic C</math> returns an
 integer (say 7), then the client will get the JSON C<{ "GET:/math/divide": 7 }>.
 
-Note that if your API is very big, this would probably mean a lot of queues. Whether this is
-good or not, I don't know yet. Opening a queue for each method also means C<McBain> can't
-intercept calls to routes that do not exist. I may add an option in the future so that the
-module only creates one queue.
+=head2 CAVEATS
 
-You should also note that it's not possible to return information about failures using Gearman,
-so when an exception is sent, the client only receives a job failed status.
+There are some disadvantages to using this runner:
+
+=over
+
+=item * Since a queue is created for every route and method in the API, C<McBain> cannot
+intercept calls to routes that do not exist.
+
+=item * You can't use regular expressions when defining queues. Well, you can, but they
+won't work.
+
+=item * Gearman provides no way of providing a detailed error message when jobs fail,
+therefore all C<McBain> can do is indicate that the job has failed and no more.
+
+=back
+
+The first two I hope to overcome in a next version, or even a different runner, by creating
+just one queue that simply forwards the requests to C<McBain>.
 
 =head1 METHODS EXPORTED TO YOUR API
 
