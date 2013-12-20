@@ -5,7 +5,7 @@ use warnings;
 use strict;
 
 use Mendoza;
-use Test::More tests => 16;
+use Test::More tests => 17;
 use Test::Exception;
 
 my $api = Mendoza->new;
@@ -26,5 +26,15 @@ dies_ok { $api->call('GET:/math/constants/golden_ration') } 'bad regex ok';
 dies_ok { $api->call('GET:/math/sum', { one => 'a', two => 2 }) } 'bad param ok';
 dies_ok { $api->call('GET:/math/asdf', { one => 1, two => 2 }) } 'wrong method ok';
 dies_ok { $api->call('GET:/nath/sum', { one => 1, two => 2 }) } 'wrong topic ok';
+
+is_deeply($api->call('OPTIONS:/math/sum'), {
+	GET => {
+		description => 'Adds two integers from params',
+		params => {
+			one => { required => 1, integer => 1 },
+			two => { required => 1, integer => 1 }
+		}
+	}
+}, 'OPTIONS okay');
 
 done_testing();

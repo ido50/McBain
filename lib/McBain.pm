@@ -16,7 +16,7 @@ use File::Spec;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "1.000000";
+our $VERSION = "1.001000";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -301,6 +301,19 @@ sub import {
 		confess { code => 404, error => "Route $route not found" }
 			unless $r;
 
+		# is this an OPTIONS request?
+		if ($meth eq 'OPTIONS') {
+			my %options;
+			foreach my $m (keys %$r) {
+				$options{$m} = {};
+				$options{$m}->{description} = $r->{$m}->{description}
+					if $r->{$m}->{description};
+				$options{$m}->{params} = $r->{$m}->{params}
+					if $r->{$m}->{params};
+			}
+			return \%options;
+		}
+
 		# does this route have the HTTP method?
 		confess { code => 405, error => "Method $meth not available for route $route" }
 			unless exists $r->{$meth};
@@ -527,6 +540,41 @@ the generated regular expression will be C<^/articles/(\d+)$>. Notice how the to
 and route are concatenated, and how the C<^> and C<$> metacharacters are added to
 the beginning and end of the regex, respectively. This means it is impossible to
 create partial regexes, which only pose problems in my experience.
+
+=head2 OPTIONS REQUESTS
+
+Every route defined by the API also automatically gets an C<OPTIONS> method,
+again just like HTTP. This method returns a list of HTTP-style methods allowed
+on the route. The return format depends on the runner module used. The direct
+runner will return a hash-ref with keys being the HTTP methods, and values being
+hash-refs holding the C<description> and C<params> definitions (if any).
+
+For example, let's look at the following route:
+
+	get '/something' => (
+		description => 'Gets something',
+		cb => sub { }
+	);
+
+	put '/something' => (
+		description => 'Updates something',
+		params => { new_content => { required => 1 } },
+		cb => sub { }
+	);
+
+Calling C<OPTIONS:/something> will return:
+
+	{
+		GET => {
+			description => "Gets something"
+		},
+		PUT => {
+			description => "Updates something",
+			params => {
+				new_content => { required => 1 }
+			}
+		}
+	}
 
 =head2 CALLING METHODS FROM WITHIN METHODS
 

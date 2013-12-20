@@ -67,8 +67,8 @@ standard C<$env> hash-ref.
 sub generate_env {
 	my $class = shift;
 
-	confess { code => 400, error => "Namespace must match <METHOD>:<ROUTE> where METHOD is one of GET, POST, PUT or DELETE" }
-		unless $_[0] =~ m/^(GET|POST|PUT|DELETE):[^:]+$/;
+	confess { code => 400, error => "Namespace must match <METHOD>:<ROUTE> where METHOD is one of GET, POST, PUT, DELETE or OPTIONS" }
+		unless $_[0] =~ m/^(GET|POST|PUT|DELETE|OPTIONS):[^:]+$/;
 
 	my ($method, $route) = split(/:/, $_[0]);
 
