@@ -1,6 +1,8 @@
 Revision history for McBain
 
 {{$NEXT}}
+
+1.001000  2013-12-20 15:17:23 Asia/Jerusalem
 	- Added support for OPTIONS requests
 	- Documentation fixes
 
