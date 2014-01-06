@@ -1,6 +1,8 @@
 Revision history for McBain
 
 {{$NEXT}}
+	- Fixed bug with _find_root returning the wrong class
+	  when the API doesn't start at a root package.
 
 1.001000  2013-12-20 15:17:23 Asia/Jerusalem
 	- Added support for OPTIONS requests

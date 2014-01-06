@@ -16,7 +16,7 @@ use File::Spec;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "1.001000";
+our $VERSION = "1.001001";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -345,10 +345,13 @@ sub _find_root {
 		# is us
 		my $parent = _find_root($`);
 		return $parent || $class;
-	} else {
+	} elsif ($INFO{$class}) {
 		# we don't have a parent, so we are the root
 		return $class;
 	}
+
+	# this is not an API
+	return;
 }
 
 # _load_topics( $base, $limit )
