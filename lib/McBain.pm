@@ -191,7 +191,7 @@ sub import {
 
 	# figure out the topic name from this class
 	my $topic = '/';
-	unless ($target eq $root) {
+	unless ($target eq $root) { 
 		my ($rel_name) = ($target =~ m/^${root}::(.+)$/)[0];
 		$topic = '/'.lc($rel_name);
 		$topic =~ s!::!/!g;
@@ -339,19 +339,15 @@ sub import {
 sub _find_root {
 	my $class = shift;
 
-	if ($class =~ m/::[^:]+$/) {
-		# we have a parent, and it might
-		# be the root. otherwise the root
-		# is us
-		my $parent = _find_root($`);
-		return $parent || $class;
-	} elsif ($INFO{$class}) {
-		# we don't have a parent, so we are the root
-		return $class;
+	my $parent = $class;
+
+	while ($parent =~ m/::[^:]+$/) {
+		return $`
+			if $INFO{$`};
+		$parent = $`;
 	}
 
-	# this is not an API
-	return;
+	return $parent;
 }
 
 # _load_topics( $base, $limit )
