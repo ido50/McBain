@@ -1,6 +1,8 @@
 Revision history for McBain
 
 {{$NEXT}}
+
+1.001001  2014-01-28 21:34:46 Asia/Jerusalem
 	- Fixed bug with _find_root returning the wrong class
 	  when the API doesn't start at a root package.
 

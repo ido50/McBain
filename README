@@ -60,11 +60,13 @@ DESCRIPTION
         "McBain" APIs can be run/used in a variety of ways with absolutely
         no changes of code. For example, they can be used directly from Perl
         code (see McBain::Directly), as fully fledged RESTful PSGI web
-        services (see McBain::WithPSGI), or as Gearman workers (see
-        McBain::WithGearmanXS). Seriously, no change of code required. More
-        McBain runners are yet to come, and you can create your own, god
-        knows I don't have the time or motivation or talent. Why should I do
-        it for you anyway?
+        services (see McBain::WithPSGI), as Gearman workers (see
+        McBain::WithGearmanXS), or as ZeroMQ workers (see
+        McBain::WithZeroMQ). Seriously, no change of code required. More
+        McBain runners are yet to come (plus search CPAN to see if more are
+        available), and you can easily create your own, god knows I don't
+        have the time or motivation or talent. Why should I do it for you
+        anyway?
 
     *   Auto-Validation
 
@@ -180,15 +182,15 @@ MANUAL
     etc.
 
     Since topics are hierarchical, every API will have a root topic, which
-    may have zero or more child topics. The root topic if where your API
-    begins, and it's decision how to utilize it. If your API is short and
-    simple, with methods that cannot be categorized into different topics,
-    then the entire API can live within the root topic itself, with no child
-    topics at all. If, however, you're building a larger API, then the root
-    topic might be empty, or it can provide general-purpose methods that do
-    not particularly fit in a specific topic, for example maybe a status
-    method that returns the status of the service, or an authentication
-    method.
+    may have zero or more child topics. The root topic is where your API
+    begins, and it's your decision how to utilize it. If your API is short
+    and simple, with methods that cannot be categorized into different
+    topics, then the entire API can live within the root topic itself, with
+    no child topics at all. If, however, you're building a larger API, then
+    the root topic might be empty, or it can provide general-purpose methods
+    that do not particularly fit in a specific topic, for example maybe a
+    status method that returns the status of the service, or an
+    authentication method.
 
     The name of a topic is calculated from the name of the package itself.
     The root topic is always called "/" (forward slash), and its child
@@ -196,10 +198,14 @@ MANUAL
     root topic, with "/" as a separator instead of Perl's "::", and starting
     with a slash. For example, lets look at the following API packages:
 
-            MyAPI                           - the root topic, will be called "/"
-            MyAPI::Math                     - a child topic, will be called "/math"
-            MyAPI::Math::Constants  - a child-of-child, will be called "/math/constants"
-            MyAPI::Strings          - a child topic, will be called "/strings"
+            +------------------------+-------------------+------------------+
+            | Package Name           | Topic Name        | Description      |
+            +========================+===================+==================+
+            | MyAPI                  | "/"               | the root topic   |
+            | MyAPI::Math            | "/math"           | a child topic    |
+            | MyAPI::Math::Constants | "/math/constants" | a child-of-child |
+            | MyAPI::Strings         | "/strings"        | a child topic    |
+            +------------------------+--------------------------------------+
 
     You will notice that the naming of the topics is similar to paths in
     HTTP URIs. This is by design, since I wrote "McBain" mostly for writing
@@ -248,10 +254,14 @@ MANUAL
     with articles in your blog. Every article has an integer ID. The
     "/articles" topic can have the following routes and methods:
 
-            POST:/articles/         - Create a new article (root route /)
-            GET:/articles/(\d+)     - Read an article
-            PUT:/articles/(\d+)     - Update an article
-            DELETE:/articles/(\d+)  - Delete an article
+            +------------------------+--------------------------------------+
+            | Namespace              | Description                          |
+            +========================+======================================+
+            | POST:/articles/        | Create a new article (root route /)  |
+            | GET:/articles/(\d+)    | Read an article                      |
+            | PUT:/articles/(\d+)    | Update an article                    |
+            | DELETE:/articles/(\d+) | Delete an article                    |
+            +------------------------+--------------------------------------+
 
     Methods are defined using the get(), post(), put() and del()
     subroutines. The syntax is similar to Moose's antlers:
@@ -312,6 +322,41 @@ MANUAL
     and how the "^" and "$" metacharacters are added to the beginning and
     end of the regex, respectively. This means it is impossible to create
     partial regexes, which only pose problems in my experience.
+
+  OPTIONS REQUESTS
+    Every route defined by the API also automatically gets an "OPTIONS"
+    method, again just like HTTP. This method returns a list of HTTP-style
+    methods allowed on the route. The return format depends on the runner
+    module used. The direct runner will return a hash-ref with keys being
+    the HTTP methods, and values being hash-refs holding the "description"
+    and "params" definitions (if any).
+
+    For example, let's look at the following route:
+
+            get '/something' => (
+                    description => 'Gets something',
+                    cb => sub { }
+            );
+
+            put '/something' => (
+                    description => 'Updates something',
+                    params => { new_content => { required => 1 } },
+                    cb => sub { }
+            );
+
+    Calling "OPTIONS:/something" will return:
+
+            {
+                    GET => {
+                            description => "Gets something"
+                    },
+                    PUT => {
+                            description => "Updates something",
+                            params => {
+                                    new_content => { required => 1 }
+                            }
+                    }
+            }
 
   CALLING METHODS FROM WITHIN METHODS
     Methods are allowed to call other methods (whether in the same route or
@@ -383,6 +428,9 @@ MCBAIN RUNNERS
         RESTful web application.
 
     *   McBain::WithGearmanXS - Turn an API into a JSON-to-JSON Gearman
+        worker.
+
+    *   McBain::WithZeroMQ - Turn an API into a JSON-to-JSON ZeroMQ REP
         worker.
 
     The latter two completely change the way your API is used, and yet you

@@ -78,7 +78,9 @@ C<McBain> is extremely lightweight, with minimal dependencies on non-core module
 
 =item * B<Portability>
 
-C<McBain> APIs can be run/used in a variety of ways with absolutely no changes of code. For example, they can be used B<directly from Perl code> (see L<McBain::Directly>), as fully fledged B<RESTful PSGI web services> (see L<McBain::WithPSGI>), or as B<Gearman workers> (see L<McBain::WithGearmanXS>). Seriously, no change of code required. More L<McBain runners|"MCBAIN RUNNERS"> are yet to come, and you can create your own, god knows I don't have the time or motivation or talent. Why should I do it for you anyway?
+C<McBain> APIs can be run/used in a variety of ways with absolutely no changes of code. For example, they can be used B<directly from Perl code> (see L<McBain::Directly>), as fully fledged B<RESTful PSGI web services> (see L<McBain::WithPSGI>), as B<Gearman workers> (see L<McBain::WithGearmanXS>), or as B<ZeroMQ workers> (see L<McBain::WithZeroMQ>). Seriously, no change of code required. More L<McBain runners|"MCBAIN RUNNERS"> are yet to come (plus search CPAN to see if more are available), and you can
+easily create your own, god knows I don't have the time or motivation or talent. Why should I do it
+for you anyway?
 
 =item * B<Auto-Validation>
 
@@ -655,6 +657,8 @@ RESTful web application.
 
 =item * L<McBain::WithGearmanXS> - Turn an API into a JSON-to-JSON
 Gearman worker.
+
+=item * L<McBain::WithZeroMQ> - Turn an API into a JSON-to-JSON ZeroMQ REP worker.
 
 =back
 
