@@ -38,7 +38,7 @@ McBain - Framework for building portable, auto-validating and self-documenting A
 		cb => sub {
 			my ($api, $params) = @_;
 
-			return $params->{one} + $params->{two};
+			return $params->{one} * $params->{two};
 		}
 	);
 

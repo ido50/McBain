@@ -16,7 +16,7 @@ SYNOPSIS
                     cb => sub {
                             my ($api, $params) = @_;
 
-                            return $params->{one} + $params->{two};
+                            return $params->{one} * $params->{two};
                     }
             );
 
