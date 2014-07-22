@@ -307,11 +307,7 @@ sub import {
 		if ($meth eq 'OPTIONS') {
 			my %options;
 			foreach my $m (keys %$r) {
-				$options{$m} = {};
-				$options{$m}->{description} = $r->{$m}->{description}
-					if $r->{$m}->{description};
-				$options{$m}->{params} = $r->{$m}->{params}
-					if $r->{$m}->{params};
+				%{$options{$m}} = map { $_ => $r->{$m}->{$_} } grep($_ ne 'cb', keys(%{$r->{$m}}));
 			}
 			return \%options;
 		}
