@@ -191,6 +191,13 @@ sub import {
 	# create the routes hash for $root
 	$INFO{$root} ||= {};
 
+	# were there any options passed?
+	if (scalar @_) {
+		my %opts = map { s/^-//; $_ => 1 } @_;
+		# apply the options to the root package
+		$INFO{$root}->{opts} = \%opts;
+	}
+
 	# figure out the topic name from this class
 	my $topic = '/';
 	unless ($target eq $root) { 
