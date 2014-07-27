@@ -1,6 +1,7 @@
 Revision history for McBain
 
 {{$NEXT}}
+	- Very small documentation fixes and updates
 
 1.001001  2014-01-28 21:34:46 Asia/Jerusalem
 	- Fixed bug with _find_root returning the wrong class
