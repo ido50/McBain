@@ -261,8 +261,12 @@ sub import {
 			# env hash-ref
 			my $env = __PACKAGE__->generate_env(@args);
 
+			my @call = ($env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
+			push(@call, $root->create_context($env, @args))
+				if $INFO{$root}->{opts} && $INFO{$root}->{opts}->{contextual};
+
 			# handle the request
-			my $res = $self->forward($env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
+			my $res = $self->forward(@call);
 
 			# ask the runner module to generate an appropriate
 			# response with the result
@@ -285,7 +289,7 @@ sub import {
 	# in call(), and can be used by API authors within API
 	# methods
 	*{"${target}::forward"} = sub {
-		my ($self, $meth_and_route, $payload) = @_;
+		my ($self, $meth_and_route, $payload, $context) = @_;
 
 		my ($meth, $route) = split(/:/, $meth_and_route);
 
@@ -329,7 +333,10 @@ sub import {
 		confess { code => 400, error => "Parameters failed validation", rejects => $params_ret->{_rejects} }
 			if $params_ret->{_rejects};
 
-		return $r->{$meth}->{cb}->($self, $params_ret, @captures);
+		unshift(@captures, $context)
+			if $context;
+
+		return $r->{$meth}->{cb}->($self, $payload, @captures);
 	};
 
 	# we're done with exporting, now lets try to load all
