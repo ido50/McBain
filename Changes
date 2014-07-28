@@ -1,9 +1,13 @@
 Revision history for McBain
 
 {{$NEXT}}
+	- Added support for a new, "contextual" mode, see README
+	  for details.
+	- Fixed yet another bug with _find_root returning the
+	  wrong package in certain situations
 
 1.001001  2014-01-28 21:34:46 Asia/Jerusalem
-	- Fixed bug with _find_root returning the wrong class
+	- Fixed bug with _find_root returning the wrong package
 	  when the API doesn't start at a root package.
 
 1.001000  2013-12-20 15:17:23 Asia/Jerusalem

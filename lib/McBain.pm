@@ -16,7 +16,7 @@ use File::Spec;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "1.001001";
+our $VERSION = "1.002000";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -662,6 +662,102 @@ ensure proper handling by C<McBain>. If C<McBain> encounters an exception
 that does not conform to this format, it will generate an exception with
 C<code> 500 (indicating "Internal Server Error"), and the C<error> key will
 hold the exception as is.
+
+=head2 CONTEXTUAL MODE
+
+I<< B<Note:> contextual mode is an experimental feature introduced in v1.2.0 and
+may change in the future. >>
+
+Contextual mode is an optional way of writing C<McBain> APIs, reminiscent of
+web application frameworks such as L<Catalyst> and L<Leyland>. The main idea
+is that a context object is created for every request, and follows it during
+its entire life.
+
+In regular mode, the API methods receive the class of the root package (or its
+object, if writing object oriented APIs), and a hash-ref of parameters. This is
+okay for simple APIs, but many APIs need more, like information about the
+user who sent the request.
+
+In contextual mode, the context object can contain user information, methods for
+checking authorization (think role-based and ability-based authorization systems),
+database connections, and anything else your API might need in order to fulfill the
+request.
+
+Writing APIs in contextual mode is basically the same as in regular mode, only you
+need to build a context class. Since C<McBain> doesn't intrude on your OO system of
+choice, constructing the class is your responsibility, and you can use whatever you
+want (like L<Moo>, L<Moose>, L<Class::Accessor>). C<McBain> only requires your
+context class to implement a subroutine named C<create_from_env( \%env,  @args_to_call )>.
+This method will receive the standard environment hash-ref of C<McBain> (which includes
+the keys C<METHOD>, C<ROUTE> and C<PAYLOAD>), plus all of the arguments that were sent to
+the L<call( @args )> method. These are useful for certain runner modules, such as the
+L<PSGI runner|McBain::WithPSGI>, which gets the L<PSGI> hash-ref, from which you can
+extract session data, user information, HTTP headers, etc. Note that this means that if
+you plan to use your API with different runner modules, your C<create_from_env()> method
+should be able to parse differently formatted arguments.
+
+Note that currently, the context class has to be named C<__ROOT__::Context>, where
+C<__ROOT__> is the name of your API's root package. So, for example, if your API's
+root package is named C<MyAPI>, then C<McBain> will expect C<MyAPI::Context>.
+
+When writing in contextual mode, your API methods will receive the context object
+instead of the root package/object, and the parameters hash-ref.
+
+Let's look at a simple example for writing APIs in contextual mode. Say our API
+is called C<MyAPI>. Let's begin with the context class, C<MyAPI::Context>:
+
+	package MyAPI::Context;
+
+	use Moo;
+	use Plack::Request;
+
+	has 'user_agent' => (
+		is => 'ro',
+		default => sub { 'none' }
+	);
+
+	sub create_from_env {
+		my ($class, $mcbain_env, @call_args) = @_;
+
+		my $user_agent;
+
+		if ($ENV{MCBAIN_WITH} eq 'WithPSGI') {
+			# extract user agent from the PSGI env,
+			# which will be the first item in @call_args
+			$user_agent = Plack::Request->new($call_args[0])->user_agent;
+		}
+
+		return $class->new(user_agent => $user_agent);
+	}
+
+	1;
+
+Now let's look at the API itself:
+
+	package MyAPI;
+
+	use McBain -contextual;
+
+	get '/' => (
+		cb => sub {
+			my ($c, $params) = @_;
+
+			if ($c->user_agent =~ m/Android/) {
+				# do it this way
+			} else {
+				# do it that way
+			}
+
+			# you can still forward to other methods
+			$c->forward('GET:/something_else', \%other_params);
+		}
+	);
+
+	1;
+
+So as you can see, the only real change for API packages is the need
+to write C<use McBain -contextual> instead of C<use McBain>. The only
+"challenge" is writing the context class.
 
 =head1 MCBAIN RUNNERS
 
