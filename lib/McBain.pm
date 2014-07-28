@@ -195,7 +195,7 @@ sub import {
 	if (scalar @_) {
 		my %opts = map { s/^-//; $_ => 1 } @_;
 		# apply the options to the root package
-		$INFO{$root}->{opts} = \%opts;
+		$INFO{$root}->{_opts} = \%opts;
 	}
 
 	# figure out the topic name from this class
@@ -252,6 +252,24 @@ sub import {
 		};
 	}
 
+	my $forward_target = $target;
+
+	if ($target eq $root && $INFO{$root}->{_opts} && $INFO{$root}->{_opts}->{contextual}) {
+		# we're running in contextual mode, which means the API
+		# should have a Context class called $root::Context, and this
+		# is the class to which we should export the forward() method
+		# (the call() method is still exported to the API class).
+		# when call() is, umm, called, we need to create a new instance
+		# of the context class and use forward() on it to handle the
+		# request
+		$forward_target = $root.'::Context';
+		eval "require $forward_target";
+		croak "Can't load context class $forward_target: $@"
+			if $@;
+		croak "Context class doesn't have create_from_env() method"
+			unless $forward_target->can('create_from_env');
+	}
+
 	# export the call method, the one that actually
 	# executes API methods
 	*{"${target}::call"} = sub {
@@ -261,12 +279,12 @@ sub import {
 			# env hash-ref
 			my $env = __PACKAGE__->generate_env(@args);
 
-			my @call = ($env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
-			push(@call, $root->create_context($env, @args))
-				if $INFO{$root}->{opts} && $INFO{$root}->{opts}->{contextual};
+			my $ctx = $INFO{$root}->{_opts} && $INFO{$root}->{_opts}->{contextual} ?
+				$forward_target->create_from_env($env, @args) :
+					$self;
 
 			# handle the request
-			my $res = $self->forward(@call);
+			my $res = $ctx->forward($env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
 
 			# ask the runner module to generate an appropriate
 			# response with the result
@@ -288,8 +306,8 @@ sub import {
 	# export the forward method, which is both used internally
 	# in call(), and can be used by API authors within API
 	# methods
-	*{"${target}::forward"} = sub {
-		my ($self, $meth_and_route, $payload, $context) = @_;
+	*{"${forward_target}::forward"} = sub {
+		my ($ctx, $meth_and_route, $payload) = @_;
 
 		my ($meth, $route) = split(/:/, $meth_and_route);
 
@@ -333,15 +351,12 @@ sub import {
 		confess { code => 400, error => "Parameters failed validation", rejects => $params_ret->{_rejects} }
 			if $params_ret->{_rejects};
 
-		unshift(@captures, $context)
-			if $context;
-
-		return $r->{$meth}->{cb}->($self, $payload, @captures);
+		return $r->{$meth}->{cb}->($ctx, $payload, @captures);
 	};
 
 	# we're done with exporting, now lets try to load all
 	# child topics (if any), and collect their method definitions
-	_load_topics($target);
+	_load_topics($target, $INFO{$root}->{_opts});
 }
 
 # _find_root( $current_class )
@@ -362,13 +377,13 @@ sub _find_root {
 	return $parent;
 }
 
-# _load_topics( $base, $limit )
+# _load_topics( $base, [ \%opts ] )
 # -- finds and loads the child topics of the class we're
 #    currently importing into, automatically requiring
 #    them and thus importing McBain into them as well
 
 sub _load_topics {
-	my ($base, $limit) = @_;
+	my ($base, $opts) = @_;
 
 	# this code is based on code from Module::Find
 
@@ -388,7 +403,12 @@ sub _load_topics {
 			$pkg =~ s/\.pm$//;
 			$pkg = join('::', File::Spec->splitdir($pkg));
 
-			require File::Spec->catdir($inc_dir, $file);
+			my $req = File::Spec->catdir($inc_dir, $file);
+
+			next if $req =~ m!/Context.pm$!
+				&& $opts && $opts->{contextual};
+
+			require $req;
 		}
 	}
 }
@@ -824,7 +844,7 @@ Ido Perlmuter <ido@ido50.net>
  
 =head1 LICENSE AND COPYRIGHT
  
-Copyright (c) 2013, Ido Perlmuter C<< ido@ido50.net >>.
+Copyright (c) 2013-2014, Ido Perlmuter C<< ido@ido50.net >>.
  
 This module is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself, either version

@@ -7,7 +7,6 @@ use strict;
 use Wolfcastle;
 use Test::More tests => 9;
 use Test::Exception;
-use Try::Tiny;
 
 my $api = Wolfcastle->new;
 

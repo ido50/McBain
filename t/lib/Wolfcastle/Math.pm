@@ -9,7 +9,7 @@ get '/sum' => (
 		two => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($api, $params, $c) = @_;
+		my ($c, $params) = @_;
 
 		return $params->{one} + $params->{two};
 	}
@@ -22,7 +22,7 @@ get '/diff' => (
 		two => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($api, $params, $c) = @_;
+		my ($c, $params) = @_;
 
 		if ($c->user->{name} eq 'ido') {
 			return 5;
@@ -39,7 +39,7 @@ get '/mult' => (
 		two => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($api, $params, $c) = @_;
+		my ($c, $params) = @_;
 
 		return $params->{one} * $params->{two};
 	}
@@ -51,11 +51,11 @@ post '/factorial' => (
 		num => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($api, $params, $c) = @_;
+		my ($c, $params) = @_;
 
-		return $params->{num} <= 1 ? 1 : $api->forward('GET:/math/mult', {
+		return $params->{num} <= 1 ? 1 : $c->forward('GET:/math/mult', {
 			one => $params->{num},
-			two => $api->forward('POST:/math/factorial', { num => $params->{num} - 1 })
+			two => $c->forward('POST:/math/factorial', { num => $params->{num} - 1 })
 		});
 	}
 );

@@ -14,11 +14,7 @@ get '/status' => (
 	cb => sub { shift->status }
 );
 
-sub new { bless { status => 'ALL IS WELL' }, shift };
-
-sub status { shift->{status} }
-
-sub create_context { Wolfcastle::Context->new($_[1]) }
+sub new { bless {}, shift };
 
 1;
 __END__
