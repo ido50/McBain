@@ -200,7 +200,7 @@ sub import {
 
 	# figure out the topic name from this class
 	my $topic = '/';
-	unless ($target eq $root) { 
+	unless ($target eq $root) {
 		my ($rel_name) = ($target =~ m/^${root}::(.+)$/)[0];
 		$topic = '/'.lc($rel_name);
 		$topic =~ s!::!/!g;
@@ -351,7 +351,7 @@ sub import {
 		confess { code => 400, error => "Parameters failed validation", rejects => $params_ret->{_rejects} }
 			if $params_ret->{_rejects};
 
-		return $r->{$meth}->{cb}->($ctx, $payload, @captures);
+		return $r->{$meth}->{cb}->($ctx, $params_ret, @captures);
 	};
 
 	# we're done with exporting, now lets try to load all
@@ -366,15 +366,14 @@ sub import {
 sub _find_root {
 	my $class = shift;
 
-	my $parent = $class;
-
-	while ($parent =~ m/::[^:]+$/) {
+	my $copy = $class;
+	while ($copy =~ m/::[^:]+$/) {
 		return $`
 			if $INFO{$`};
-		$parent = $`;
+		$copy = $`;
 	}
 
-	return $parent;
+	return $class;
 }
 
 # _load_topics( $base, [ \%opts ] )
