@@ -5,9 +5,12 @@ use warnings;
 use strict;
 
 use Mendoza;
-use Test::More tests => 17;
+use Test::More tests => 19;
 use Test::Exception;
+use Data::Dumper;
+use Try::Tiny;
 
+try {
 my $api = Mendoza->new;
 
 is($api->call('GET:/status'), 'ALL IS WELL', 'status ok');
@@ -26,6 +29,8 @@ dies_ok { $api->call('GET:/math/constants/golden_ration') } 'bad regex ok';
 dies_ok { $api->call('GET:/math/sum', { one => 'a', two => 2 }) } 'bad param ok';
 dies_ok { $api->call('GET:/math/asdf', { one => 1, two => 2 }) } 'wrong method ok';
 dies_ok { $api->call('GET:/nath/sum', { one => 1, two => 2 }) } 'wrong topic ok';
+dies_ok { $api->call('GET:/pre_route_test') } 'pre_route ok';
+is($api->call('GET:/post_route_test'), 'post_route messed you up', 'post_route ok');
 
 is_deeply($api->call('OPTIONS:/math/sum'), {
 	GET => {
@@ -36,5 +41,8 @@ is_deeply($api->call('OPTIONS:/math/sum'), {
 		}
 	}
 }, 'OPTIONS okay');
+} catch {
+	diag(Dumper($_));
+};
 
 done_testing();

@@ -270,6 +270,13 @@ sub import {
 			unless $forward_target->can('create_from_env');
 	}
 
+	# export the pre_route and post_route "constructors"
+	foreach my $mod (qw/pre_route post_route/) {
+		*{$target.'::'.$mod} = sub (&) {
+			$INFO{$root}->{pre_route} = shift;
+		};
+	}
+
 	# export the call method, the one that actually
 	# executes API methods
 	*{"${target}::call"} = sub {
@@ -283,8 +290,16 @@ sub import {
 				$forward_target->create_from_env($env, @args) :
 					$self;
 
+			# is there a pre_route?
+			$INFO{$root}->{pre_route}
+				&& $INFO{$root}->{pre_route}->($self, $env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
+
 			# handle the request
 			my $res = $ctx->forward($env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
+
+			# is there a post_route?
+			$INFO{$root}->{post_route}
+				&& $INFO{$root}->{post_route}->($self, $env->{METHOD}.':'.$env->{ROUTE}, \$res);
 
 			# ask the runner module to generate an appropriate
 			# response with the result

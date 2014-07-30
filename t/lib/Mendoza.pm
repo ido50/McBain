@@ -14,6 +14,20 @@ get '/status' => (
 	cb => sub { shift->status }
 );
 
+pre_route {
+	my ($api, $ns, $params) = @_;
+
+	croak { code => 500, error => "pre_route doesn't like you" }
+		if $ns eq 'GET:/pre_route_test';
+};
+
+post_route {
+	my ($api, $ns, $result) = @_;
+
+	$$result = 'post_route messed you up'
+		if $ns eq 'GET:/post_route_test';
+};
+
 sub new { bless { status => 'ALL IS WELL' }, shift };
 
 sub status { shift->{status} }
