@@ -1,6 +1,8 @@
 Revision history for McBain
 
 {{$NEXT}}
+
+1.002000  2014-07-28 23:46:31+03:00 Asia/Jerusalem
 	- Added support for a new, "contextual" mode, see README
 	  for details.
 	- Fixed yet another bug with _find_root returning the

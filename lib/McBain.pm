@@ -273,7 +273,7 @@ sub import {
 	# export the pre_route and post_route "constructors"
 	foreach my $mod (qw/pre_route post_route/) {
 		*{$target.'::'.$mod} = sub (&) {
-			$INFO{$root}->{pre_route} = shift;
+			$INFO{$root}->{$mod} = shift;
 		};
 	}
 
@@ -290,16 +290,8 @@ sub import {
 				$forward_target->create_from_env($env, @args) :
 					$self;
 
-			# is there a pre_route?
-			$INFO{$root}->{pre_route}
-				&& $INFO{$root}->{pre_route}->($self, $env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
-
 			# handle the request
 			my $res = $ctx->forward($env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
-
-			# is there a post_route?
-			$INFO{$root}->{post_route}
-				&& $INFO{$root}->{post_route}->($self, $env->{METHOD}.':'.$env->{ROUTE}, \$res);
 
 			# ask the runner module to generate an appropriate
 			# response with the result
@@ -366,7 +358,17 @@ sub import {
 		confess { code => 400, error => "Parameters failed validation", rejects => $params_ret->{_rejects} }
 			if $params_ret->{_rejects};
 
-		return $r->{$meth}->{cb}->($ctx, $params_ret, @captures);
+		# is there a pre_route?
+		$INFO{$root}->{pre_route}
+			&& $INFO{$root}->{pre_route}->($ctx, $meth_and_route, $params_ret);
+
+		my $res = $r->{$meth}->{cb}->($ctx, $params_ret, @captures);
+
+		# is there a post_route?
+		$INFO{$root}->{post_route}
+			&& $INFO{$root}->{post_route}->($ctx, $meth_and_route, \$res);
+
+		return $res;
 	};
 
 	# we're done with exporting, now lets try to load all

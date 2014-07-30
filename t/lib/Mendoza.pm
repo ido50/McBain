@@ -14,6 +14,10 @@ get '/status' => (
 	cb => sub { shift->status }
 );
 
+get '/(pre|post)_route_test' => (
+	cb => sub { 'asdf' }
+);
+
 pre_route {
 	my ($api, $ns, $params) = @_;
 
