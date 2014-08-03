@@ -11,7 +11,7 @@ use File::Spec;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "1.002000";
+our $VERSION = "2.000000";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -184,15 +184,7 @@ sub import {
 	my $root = _find_root($target);
 
 	# create the routes hash for $root
-	$INFO{$root} ||= { _runner => 'McBain::'.($ENV{$root.'_WITH'} || $ENV{MCBAIN_WITH} || 'Directly') };
-
-	my $runner = $INFO{$root}->{_runner};
-
-	if ($target eq $root) {
-		eval "require $runner";
-		croak "Can't load runner module $runner: $@"
-			if $@;
-	}
+	$INFO{$root} ||= {};
 
 	# were there any options passed?
 	if (scalar @_) {
@@ -218,10 +210,24 @@ sub import {
 		exists $INFO{$target};
 	};
 
-	# let the runner module do needed initializations,
-	# as the init method usually needs the is_root subroutine,
-	# this statement must come after exporting is_root()
-	$runner->init($target);
+	if ($target eq $root) {
+		*{"${target}::import"} = sub {
+			my $t = caller;
+			shift;
+			my $runner = scalar @_ ? 'McBain::'.ucfirst(substr($_[0], 1)) : 'McBain::Directly';
+
+			eval "require $runner";
+			croak "Can't load runner module $runner: $@"
+				if $@;
+
+			$INFO{$root}->{_runner} = $runner;
+
+			# let the runner module do needed initializations,
+			# as the init method usually needs the is_root subroutine,
+			# this statement must come after exporting is_root()
+			$runner->init($target);
+		};
+	}
 
 	# export the provide subroutine to the target topic,
 	# so that it can define routes and methods.
@@ -284,6 +290,9 @@ sub import {
 	# executes API methods
 	*{"${target}::call"} = sub {
 		my ($self, @args) = @_;
+
+		my $runner = $INFO{$root}->{_runner};
+
 		return try {
 			# ask the runner module to generate a standard
 			# env hash-ref
