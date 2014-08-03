@@ -2,11 +2,6 @@ package McBain;
 
 # ABSTRACT: Framework for building portable, auto-validating and self-documenting APIs
 
-BEGIN {
-	$ENV{MCBAIN_WITH} ||= 'Directly';
-};
-
-use parent "McBain::$ENV{MCBAIN_WITH}";
 use warnings;
 use strict;
 
@@ -189,7 +184,15 @@ sub import {
 	my $root = _find_root($target);
 
 	# create the routes hash for $root
-	$INFO{$root} ||= {};
+	$INFO{$root} ||= { _runner => 'McBain::'.($ENV{$root.'_WITH'} || $ENV{MCBAIN_WITH} || 'Directly') };
+
+	my $runner = $INFO{$root}->{_runner};
+
+	if ($target eq $root) {
+		eval "require $runner";
+		croak "Can't load runner module $runner: $@"
+			if $@;
+	}
 
 	# were there any options passed?
 	if (scalar @_) {
@@ -201,7 +204,7 @@ sub import {
 	# figure out the topic name from this class
 	my $topic = '/';
 	unless ($target eq $root) {
-		my ($rel_name) = ($target =~ m/^${root}::(.+)$/)[0];
+		my $rel_name = ($target =~ m/^${root}::(.+)$/)[0];
 		$topic = '/'.lc($rel_name);
 		$topic =~ s!::!/!g;
 	}
@@ -218,7 +221,7 @@ sub import {
 	# let the runner module do needed initializations,
 	# as the init method usually needs the is_root subroutine,
 	# this statement must come after exporting is_root()
-	__PACKAGE__->init($target);
+	$runner->init($target);
 
 	# export the provide subroutine to the target topic,
 	# so that it can define routes and methods.
@@ -284,7 +287,7 @@ sub import {
 		return try {
 			# ask the runner module to generate a standard
 			# env hash-ref
-			my $env = __PACKAGE__->generate_env(@args);
+			my $env = $runner->generate_env(@args);
 
 			my $ctx = $INFO{$root}->{_opts} && $INFO{$root}->{_opts}->{contextual} ?
 				$forward_target->create_from_env($env, @args) :
@@ -295,7 +298,7 @@ sub import {
 
 			# ask the runner module to generate an appropriate
 			# response with the result
-			return __PACKAGE__->generate_res($env, $res);
+			return $runner->generate_res($env, $res);
 		} catch {
 			# an exception was caught, ask the runner module
 			# to format it as it needs
@@ -306,7 +309,7 @@ sub import {
 				$exp = { code => 500, error => $_ };
 			}
 
-			return __PACKAGE__->handle_exception($exp, @args);
+			return $runner->handle_exception($exp, @args);
 		};
 	};
 
