@@ -5,7 +5,7 @@ use warnings;
 use strict;
 
 use Mendoza;
-use Test::More tests => 19;
+use Test::More tests => 20;
 use Test::Exception;
 use Data::Dumper;
 use Try::Tiny;
@@ -30,6 +30,7 @@ dies_ok { $api->call('GET:/math/sum', { one => 'a', two => 2 }) } 'bad param ok'
 dies_ok { $api->call('GET:/math/asdf', { one => 1, two => 2 }) } 'wrong method ok';
 dies_ok { $api->call('GET:/nath/sum', { one => 1, two => 2 }) } 'wrong topic ok';
 dies_ok { $api->call('GET:/pre_route_test') } 'pre_route ok';
+dies_ok { $api->call('GET:/math/pre_route_test') } '2nd level pre_route ok';
 is($api->call('GET:/post_route_test'), 'post_route messed you up', 'post_route ok');
 
 is_deeply($api->call('OPTIONS:/math/sum'), {

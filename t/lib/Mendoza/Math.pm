@@ -71,5 +71,16 @@ post '/factorial' => (
 	}
 );
 
+get '/pre_route_test' => (
+	cb => sub { 'asdf' }
+);
+
+pre_route {
+	my ($api, $ns, $params) = @_;
+
+	croak { code => 500, error => "math pre_route doesn't like you" }
+		if $ns eq 'GET:/math/pre_route_test';
+};
+
 1;
 __END__

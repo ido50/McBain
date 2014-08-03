@@ -138,6 +138,11 @@ FUNCTIONS
   del( $route, %opts )
     Shortcut for "provide( 'DELETE', $route, %opts )"
 
+  pre_route( $cb->( $self, $meth_and_route, \%params ) )
+  post_route( $cb->( $self, $meth_and_route, \$ret ) )
+    Define a post_route method to run before/after every request to a route
+    in the defining topic. See "PRE-ROUTES AND POST-ROUTES" for details.
+
 METHODS
     The following methods will be available on importing classes/objects:
 
@@ -408,6 +413,59 @@ MANUAL
     exception that does not conform to this format, it will generate an
     exception with "code" 500 (indicating "Internal Server Error"), and the
     "error" key will hold the exception as is.
+
+  PRE-ROUTES AND POST-ROUTES
+    *New in v1.3.0*
+
+    Every topic in your API can define pre and post routes. The pre route is
+    called right before a route is executed, while the post route is called
+    immediately after.
+
+    You should note that the pre and post routes are called on every route
+    execution (when applicable), even when forwarding from one route to
+    another.
+
+    Pre and post routes are hierarchical. When a route is executed, "McBain"
+    will analyze the entire chain of topics leading up to that route, and
+    execute all pre and post routes on the way (if any, of course). So, for
+    example, if the route "/math/factorial" is to be executed, "McBain" will
+    look for pre and post routes and the root topic ("/"), the "/math"
+    topic, and the "/math/factorial" topic (if it exists). Whichever ones it
+    finds will be executed, in order.
+
+    The "pre_route" subroutine gets as parameters the API package (or
+    object, if writing object-oriented APIs, or the context object, if
+    writing in contextual mode), the full route name (the method and the
+    path, e.g. "POST:/math/factorial"), and the parameters hash-ref, after
+    validation has occurred.
+
+            package MyApi::Math;
+
+            post '/factorial' => (
+                    ...
+            );
+
+            pre_route {
+                    my ($self, $meth_and_route, $params) = @_;
+
+                    # do something here
+            }
+
+    The "post_route" subroutine gets the same parameters, except the
+    parameters hash-ref, in which place a reference to the result returned
+    by the actual route is passed. So, for example, if the
+    "POST:/math/factorial" method returned 13, then "post_route" will get a
+    reference to a scalar variable whose value is 13.
+
+            post_route {
+                    my ($self, $meth_and_route, $ret) = @_;
+
+                    if ($$ret == 13) {
+                            # change the result to 14, because
+                            # 13 is an unlucky number
+                            $$ret = 14;
+                    }
+            }
 
   CONTEXTUAL MODE
     *Note: contextual mode is an experimental feature introduced in v1.2.0

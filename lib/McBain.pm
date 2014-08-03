@@ -16,7 +16,7 @@ use File::Spec;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "1.002000";
+our $VERSION = "1.003000";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -146,6 +146,13 @@ Shortcut for C<provide( 'PUT', $route, %opts )>
 
 Shortcut for C<provide( 'DELETE', $route, %opts )>
 
+=head2 pre_route( $cb->( $self, $meth_and_route, \%params ) )
+
+=head2 post_route( $cb->( $self, $meth_and_route, \$ret ) )
+
+Define a post_route method to run before/after every request to a route in the
+defining topic. See L</"PRE-ROUTES AND POST-ROUTES"> for details.
+
 =head1 METHODS
 
 The following methods will be available on importing classes/objects:
@@ -273,7 +280,8 @@ sub import {
 	# export the pre_route and post_route "constructors"
 	foreach my $mod (qw/pre_route post_route/) {
 		*{$target.'::'.$mod} = sub (&) {
-			$INFO{$root}->{$mod} = shift;
+			$INFO{$root}->{"_$mod"} ||= {};
+			$INFO{$root}->{"_$mod"}->{$topic} = shift;
 		};
 	}
 
@@ -358,15 +366,23 @@ sub import {
 		confess { code => 400, error => "Parameters failed validation", rejects => $params_ret->{_rejects} }
 			if $params_ret->{_rejects};
 
-		# is there a pre_route?
-		$INFO{$root}->{pre_route}
-			&& $INFO{$root}->{pre_route}->($ctx, $meth_and_route, $params_ret);
+		# break the path into "directories", run pre_route methods
+		# for each directory (if any)
+		my @parts = _break_path($route);
+
+		# are there pre_routes?
+		foreach my $part (@parts) {
+			$INFO{$root}->{_pre_route}->{$part}->($ctx, $meth_and_route, $params_ret)
+				if $INFO{$root}->{_pre_route} && $INFO{$root}->{_pre_route}->{$part};
+		}
 
 		my $res = $r->{$meth}->{cb}->($ctx, $params_ret, @captures);
 
-		# is there a post_route?
-		$INFO{$root}->{post_route}
-			&& $INFO{$root}->{post_route}->($ctx, $meth_and_route, \$res);
+		# are there post_routes?
+		foreach my $part (@parts) {
+			$INFO{$root}->{_post_route}->{$part}->($ctx, $meth_and_route, \$res)
+				if $INFO{$root}->{_post_route} && $INFO{$root}->{_post_route}->{$part};
+		}
 
 		return $res;
 	};
@@ -427,6 +443,29 @@ sub _load_topics {
 			require $req;
 		}
 	}
+}
+
+# _break_path( $path )
+# -- breaks a route/path into a list of "directories",
+#    starting from the root and up to the full path
+
+sub _break_path {
+	my $path = shift;
+
+	my $copy = $path;
+	chop($copy)
+		unless $copy eq '/';
+
+	my @path;
+
+	while (length($copy)) {
+		unshift(@path, $copy);
+		$copy =~ s!/[^/]+$!!;
+	}
+
+	unshift(@path, '/');
+
+	return @path;
 }
 
 =head1 MANUAL
@@ -679,6 +718,55 @@ ensure proper handling by C<McBain>. If C<McBain> encounters an exception
 that does not conform to this format, it will generate an exception with
 C<code> 500 (indicating "Internal Server Error"), and the C<error> key will
 hold the exception as is.
+
+=head2 PRE-ROUTES AND POST-ROUTES
+
+I<New in v1.3.0>
+
+Every topic in your API can define pre and post routes. The pre route is called
+right before a route is executed, while the post route is called immediately after.
+
+You should note that the pre and post routes are called on every route execution
+(when applicable), even when forwarding from one route to another.
+
+Pre and post routes are hierarchical. When a route is executed, C<McBain> will analyze
+the entire chain of topics leading up to that route, and execute all pre and post routes
+on the way (if any, of course). So, for example, if the route C</math/factorial> is to be
+executed, C<McBain> will look for pre and post routes and the root topic (C</>), the C</math>
+topic, and the C</math/factorial> topic (if it exists). Whichever ones it finds will be
+executed, in order.
+
+The C<pre_route> subroutine gets as parameters the API package (or object, if writing
+object-oriented APIs, or the context object, if writing in L<contextual mode|/"CONTEXTUAL MODE">),
+the full route name (the method and the path, e.g. C<POST:/math/factorial>), and the
+parameters hash-ref, after validation has occurred.
+
+	package MyApi::Math;
+
+	post '/factorial' => (
+		...
+	);
+
+	pre_route {
+		my ($self, $meth_and_route, $params) = @_;
+
+		# do something here
+	}
+
+The C<post_route> subroutine gets the same parameters, except the parameters hash-ref, in which
+place a reference to the result returned by the actual route is passed. So, for example, if
+the C<POST:/math/factorial> method returned C<13>, then C<post_route> will get a reference
+to a scalar variable whose value is 13.
+
+	post_route {
+		my ($self, $meth_and_route, $ret) = @_;
+
+		if ($$ret == 13) {
+			# change the result to 14, because
+			# 13 is an unlucky number
+			$$ret = 14;
+		}
+	}
 
 =head2 CONTEXTUAL MODE
 
