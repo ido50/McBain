@@ -2,11 +2,6 @@ package McBain;
 
 # ABSTRACT: Framework for building portable, auto-validating and self-documenting APIs
 
-BEGIN {
-	$ENV{MCBAIN_WITH} ||= 'Directly';
-};
-
-use parent "McBain::$ENV{MCBAIN_WITH}";
 use warnings;
 use strict;
 
@@ -16,7 +11,7 @@ use File::Spec;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "1.003000";
+our $VERSION = "2.000000";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -208,7 +203,7 @@ sub import {
 	# figure out the topic name from this class
 	my $topic = '/';
 	unless ($target eq $root) {
-		my ($rel_name) = ($target =~ m/^${root}::(.+)$/)[0];
+		my $rel_name = ($target =~ m/^${root}::(.+)$/)[0];
 		$topic = '/'.lc($rel_name);
 		$topic =~ s!::!/!g;
 	}
@@ -222,10 +217,24 @@ sub import {
 		exists $INFO{$target};
 	};
 
-	# let the runner module do needed initializations,
-	# as the init method usually needs the is_root subroutine,
-	# this statement must come after exporting is_root()
-	__PACKAGE__->init($target);
+	if ($target eq $root) {
+		*{"${target}::import"} = sub {
+			my $t = caller;
+			shift;
+			my $runner = scalar @_ ? 'McBain::'.ucfirst(substr($_[0], 1)) : 'McBain::Directly';
+
+			eval "require $runner";
+			croak "Can't load runner module $runner: $@"
+				if $@;
+
+			$INFO{$root}->{_runner} = $runner;
+
+			# let the runner module do needed initializations,
+			# as the init method usually needs the is_root subroutine,
+			# this statement must come after exporting is_root()
+			$runner->init($target);
+		};
+	}
 
 	# export the provide subroutine to the target topic,
 	# so that it can define routes and methods.
@@ -289,13 +298,16 @@ sub import {
 	# executes API methods
 	*{"${target}::call"} = sub {
 		my ($self, @args) = @_;
+
+		my $runner = $INFO{$root}->{_runner};
+
 		return try {
 			# ask the runner module to generate a standard
 			# env hash-ref
-			my $env = __PACKAGE__->generate_env(@args);
+			my $env = $runner->generate_env(@args);
 
 			my $ctx = $INFO{$root}->{_opts} && $INFO{$root}->{_opts}->{contextual} ?
-				$forward_target->create_from_env($env, @args) :
+				$forward_target->create_from_env($runner, $env, @args) :
 					$self;
 
 			# handle the request
@@ -303,7 +315,7 @@ sub import {
 
 			# ask the runner module to generate an appropriate
 			# response with the result
-			return __PACKAGE__->generate_res($env, $res);
+			return $runner->generate_res($env, $res);
 		} catch {
 			# an exception was caught, ask the runner module
 			# to format it as it needs
@@ -314,7 +326,7 @@ sub import {
 				$exp = { code => 500, error => $_ };
 			}
 
-			return __PACKAGE__->handle_exception($exp, @args);
+			return $runner->handle_exception($exp, @args);
 		};
 	};
 
@@ -792,14 +804,15 @@ Writing APIs in contextual mode is basically the same as in regular mode, only y
 need to build a context class. Since C<McBain> doesn't intrude on your OO system of
 choice, constructing the class is your responsibility, and you can use whatever you
 want (like L<Moo>, L<Moose>, L<Class::Accessor>). C<McBain> only requires your
-context class to implement a subroutine named C<create_from_env( \%env,  @args_to_call )>.
-This method will receive the standard environment hash-ref of C<McBain> (which includes
-the keys C<METHOD>, C<ROUTE> and C<PAYLOAD>), plus all of the arguments that were sent to
-the L<call( @args )> method. These are useful for certain runner modules, such as the
-L<PSGI runner|McBain::WithPSGI>, which gets the L<PSGI> hash-ref, from which you can
-extract session data, user information, HTTP headers, etc. Note that this means that if
-you plan to use your API with different runner modules, your C<create_from_env()> method
-should be able to parse differently formatted arguments.
+context class to implement a subroutine named C<create_from_env( $runner, \%env,  @args_to_call )>.
+This method will receive the name of the runner module used, the standard environment
+hash-ref of C<McBain> (which includes the keys C<METHOD>, C<ROUTE> and C<PAYLOAD>),
+plus all of the arguments that were sent to the L<call( @args )> method. These are
+useful for certain runner modules, such as the L<PSGI runner|McBain::WithPSGI>,
+which gets the L<PSGI> hash-ref, from which you can extract session data, user
+information, HTTP headers, etc. Note that this means that if you plan to use your API
+with different runner modules, your C<create_from_env()> method should be able to parse
+differently formatted arguments.
 
 Note that currently, the context class has to be named C<__ROOT__::Context>, where
 C<__ROOT__> is the name of your API's root package. So, for example, if your API's
@@ -822,11 +835,11 @@ is called C<MyAPI>. Let's begin with the context class, C<MyAPI::Context>:
 	);
 
 	sub create_from_env {
-		my ($class, $mcbain_env, @call_args) = @_;
+		my ($class, $runner, $mcbain_env, @call_args) = @_;
 
 		my $user_agent;
 
-		if ($ENV{MCBAIN_WITH} eq 'WithPSGI') {
+		if ($runner eq 'WithPSGI') {
 			# extract user agent from the PSGI env,
 			# which will be the first item in @call_args
 			$user_agent = Plack::Request->new($call_args[0])->user_agent;
@@ -888,17 +901,28 @@ RESTful web application.
 =item * L<McBain::WithGearmanXS> - Turn an API into a JSON-to-JSON
 Gearman worker.
 
+=item * L<McBain::WithWebSocket> - Turn an API into a WebSocket server.
+
 =item * L<McBain::WithZeroMQ> - Turn an API into a JSON-to-JSON ZeroMQ REP worker.
 
 =back
 
-The latter two completely change the way your API is used, and yet you can
+The latter four completely change the way your API is used, and yet you can
 see their code is very short.
 
-C<McBain> knows which runner module to use by the value of the C<MCBAIN_WITH>
-environment variable (i.e. C<$ENV{MCBAIN_WITH}>). For example, if the value
-of the variable is C<WithPSGI>, then C<McBain> will use C<McBain::WithPSGI>
-as the runner module.
+To tell C<McBain> which runner module to use, you must provide the name of the
+runner when loading your API:
+
+	use MyAPI -withPSGI; # can also write -WithPSGI
+
+In the above example, C<McBain::WithPSGI> will be the runner module used.
+
+The default runner module is L<McBain::Directly>. If you C<use> an API with no
+parameter, it will be used:
+
+	use MyAPI;
+
+	use MyAPI -directly; # the same as above
 
 You can easily create your own runner modules, so that your APIs can be used
 in different ways. A runner module needs to implement the following interface:
@@ -963,12 +987,7 @@ to properly indicate the job failed.
 
 =head1 CONFIGURATION AND ENVIRONMENT
    
-C<McBain> itself requires no configuration files or environment variables.
-However, when using/running APIs written with C<McBain>, the C<MCBAIN_WITH>
-environment variable might be needed to tell C<McBain> the name of the
-L<runner module|"MCBAIN RUNNERS"> to use. The default value is "Directly",
-so L<McBain::Directly> is used. See the various C<McBain> runner modules
-for more information.
+No configuration files or environment variables required.
  
 =head1 DEPENDENCIES
  

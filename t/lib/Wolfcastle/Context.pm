@@ -6,7 +6,7 @@ use strict;
 sub new { bless $_[1] || {}, $_[0] }
 
 sub create_from_env {
-	my ($class, $env) = @_;
+	my ($class, $runner, $env) = @_;
 
 	$class->new({
 		params => $env->{PAYLOAD},
