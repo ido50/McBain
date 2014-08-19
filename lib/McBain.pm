@@ -879,14 +879,16 @@ to write C<use McBain -contextual> instead of C<use McBain>. The only
 
 =head1 MCBAIN RUNNERS
 
+I<< B<NOTE:> since v2.0.0 the way runner modules are used has changed. The
+C<MCBAIN_WITH> environment variable is no longer used. Read on for more
+information. >>
+
 A runner module is in charge of loading C<McBain> APIs in a specific way.
 The default runner, L<McBain::Directly>, is the simplest runner there is,
 and is meant for using APIs directly from Perl code.
 
-When a C<McBain> API is loaded, the selected runner module is actually
-set as the base class of C<McBain>, thus tweaking its behavior. The runner
-is in charge of whatever heavy lifting is required in order to turn
-your API into a "service", or an "app", or whatever it is you think your
+The runner module is in charge of whatever heavy lifting is required in order
+to turn your API into a "service", or an "app", or whatever it is you think your
 API needs to be.
 
 The following runners are currently available:
@@ -917,8 +919,8 @@ runner when loading your API:
 
 In the above example, C<McBain::WithPSGI> will be the runner module used.
 
-The default runner module is L<McBain::Directly>. If you C<use> an API with no
-parameter, it will be used:
+The default runner module is C<McBain::Directly>. If you C<use> an API with no
+parameter, it will be the loaded runner module:
 
 	use MyAPI;
 

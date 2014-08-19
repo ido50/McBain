@@ -1,6 +1,11 @@
 Revision history for McBain
 
 {{$NEXT}}
+	- Changed the way runner modules are used. The MCBAIN_WITH environment
+	  variable is no longer used. Instead, the name of the runner module is
+	  passed when loading the API. See README for more details.
+
+1.003000  2014-08-03 20:29:20+03:00 Asia/Jerusalem
 	- Added support for pre routes and post routes, see README
 	  for details
 

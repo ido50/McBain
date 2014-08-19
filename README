@@ -491,15 +491,16 @@ MANUAL
     intrude on your OO system of choice, constructing the class is your
     responsibility, and you can use whatever you want (like Moo, Moose,
     Class::Accessor). "McBain" only requires your context class to implement
-    a subroutine named "create_from_env( \%env, @args_to_call )". This
-    method will receive the standard environment hash-ref of "McBain" (which
-    includes the keys "METHOD", "ROUTE" and "PAYLOAD"), plus all of the
-    arguments that were sent to the "call( @args )" method. These are useful
-    for certain runner modules, such as the PSGI runner, which gets the PSGI
-    hash-ref, from which you can extract session data, user information,
-    HTTP headers, etc. Note that this means that if you plan to use your API
-    with different runner modules, your "create_from_env()" method should be
-    able to parse differently formatted arguments.
+    a subroutine named "create_from_env( $runner, \%env, @args_to_call )".
+    This method will receive the name of the runner module used, the
+    standard environment hash-ref of "McBain" (which includes the keys
+    "METHOD", "ROUTE" and "PAYLOAD"), plus all of the arguments that were
+    sent to the "call( @args )" method. These are useful for certain runner
+    modules, such as the PSGI runner, which gets the PSGI hash-ref, from
+    which you can extract session data, user information, HTTP headers, etc.
+    Note that this means that if you plan to use your API with different
+    runner modules, your "create_from_env()" method should be able to parse
+    differently formatted arguments.
 
     Note that currently, the context class has to be named
     "__ROOT__::Context", where "__ROOT__" is the name of your API's root
@@ -525,11 +526,11 @@ MANUAL
             );
 
             sub create_from_env {
-                    my ($class, $mcbain_env, @call_args) = @_;
+                    my ($class, $runner, $mcbain_env, @call_args) = @_;
 
                     my $user_agent;
 
-                    if ($ENV{MCBAIN_WITH} eq 'WithPSGI') {
+                    if ($runner eq 'WithPSGI') {
                             # extract user agent from the PSGI env,
                             # which will be the first item in @call_args
                             $user_agent = Plack::Request->new($call_args[0])->user_agent;
@@ -568,15 +569,17 @@ MANUAL
     "challenge" is writing the context class.
 
 MCBAIN RUNNERS
+    *NOTE: since v2.0.0 the way runner modules are used has changed. The
+    "MCBAIN_WITH" environment variable is no longer used. Read on for more
+    information.*
+
     A runner module is in charge of loading "McBain" APIs in a specific way.
     The default runner, McBain::Directly, is the simplest runner there is,
     and is meant for using APIs directly from Perl code.
 
-    When a "McBain" API is loaded, the selected runner module is actually
-    set as the base class of "McBain", thus tweaking its behavior. The
-    runner is in charge of whatever heavy lifting is required in order to
-    turn your API into a "service", or an "app", or whatever it is you think
-    your API needs to be.
+    The runner module is in charge of whatever heavy lifting is required in
+    order to turn your API into a "service", or an "app", or whatever it is
+    you think your API needs to be.
 
     The following runners are currently available:
 
@@ -588,16 +591,27 @@ MCBAIN RUNNERS
     *   McBain::WithGearmanXS - Turn an API into a JSON-to-JSON Gearman
         worker.
 
+    *   McBain::WithWebSocket - Turn an API into a WebSocket server.
+
     *   McBain::WithZeroMQ - Turn an API into a JSON-to-JSON ZeroMQ REP
         worker.
 
-    The latter two completely change the way your API is used, and yet you
+    The latter four completely change the way your API is used, and yet you
     can see their code is very short.
 
-    "McBain" knows which runner module to use by the value of the
-    "MCBAIN_WITH" environment variable (i.e. $ENV{MCBAIN_WITH}). For
-    example, if the value of the variable is "WithPSGI", then "McBain" will
-    use "McBain::WithPSGI" as the runner module.
+    To tell "McBain" which runner module to use, you must provide the name
+    of the runner when loading your API:
+
+            use MyAPI -withPSGI; # can also write -WithPSGI
+
+    In the above example, "McBain::WithPSGI" will be the runner module used.
+
+    The default runner module is "McBain::Directly". If you "use" an API
+    with no parameter, it will be the loaded runner module:
+
+            use MyAPI;
+
+            use MyAPI -directly; # the same as above
 
     You can easily create your own runner modules, so that your APIs can be
     used in different ways. A runner module needs to implement the following
@@ -661,12 +675,7 @@ MCBAIN RUNNERS
     failed.
 
 CONFIGURATION AND ENVIRONMENT
-    "McBain" itself requires no configuration files or environment
-    variables. However, when using/running APIs written with "McBain", the
-    "MCBAIN_WITH" environment variable might be needed to tell "McBain" the
-    name of the runner module to use. The default value is "Directly", so
-    McBain::Directly is used. See the various "McBain" runner modules for
-    more information.
+    No configuration files or environment variables required.
 
 DEPENDENCIES
     "McBain" depends on the following CPAN modules:
