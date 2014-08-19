@@ -11,7 +11,7 @@ use File::Spec;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "2.000000";
+our $VERSION = "2.000001";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -839,7 +839,7 @@ is called C<MyAPI>. Let's begin with the context class, C<MyAPI::Context>:
 
 		my $user_agent;
 
-		if ($runner eq 'WithPSGI') {
+		if ($runner eq 'McBain::WithPSGI') {
 			# extract user agent from the PSGI env,
 			# which will be the first item in @call_args
 			$user_agent = Plack::Request->new($call_args[0])->user_agent;

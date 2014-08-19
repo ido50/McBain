@@ -530,7 +530,7 @@ MANUAL
 
                     my $user_agent;
 
-                    if ($runner eq 'WithPSGI') {
+                    if ($runner eq 'McBain::WithPSGI') {
                             # extract user agent from the PSGI env,
                             # which will be the first item in @call_args
                             $user_agent = Plack::Request->new($call_args[0])->user_agent;

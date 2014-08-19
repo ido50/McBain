@@ -1,6 +1,9 @@
 Revision history for McBain
 
 {{$NEXT}}
+	- Small documentation bugfix
+
+2.000000  2014-08-19 18:54:35+03:00 Asia/Jerusalem
 	- Changed the way runner modules are used. The MCBAIN_WITH environment
 	  variable is no longer used. Instead, the name of the runner module is
 	  passed when loading the API. See README for more details.
