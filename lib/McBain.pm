@@ -11,7 +11,7 @@ use File::Spec;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "2.000001";
+our $VERSION = "2.000002";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -465,14 +465,16 @@ sub _break_path {
 	my $path = shift;
 
 	my $copy = $path;
-	chop($copy)
-		unless $copy eq '/';
 
 	my @path;
 
-	while (length($copy)) {
-		unshift(@path, $copy);
-		$copy =~ s!/[^/]+$!!;
+	unless ($copy eq '/') {
+		chop($copy);
+
+		while (length($copy)) {
+			unshift(@path, $copy);
+			$copy =~ s!/[^/]+$!!;
+		}
 	}
 
 	unshift(@path, '/');

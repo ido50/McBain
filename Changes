@@ -1,6 +1,9 @@
 Revision history for McBain
 
 {{$NEXT}}
+	- Bugfix _break_path
+
+2.000001  2014-08-19 19:05:15+03:00 Asia/Jerusalem
 	- Small documentation bugfix
 
 2.000000  2014-08-19 18:54:35+03:00 Asia/Jerusalem
