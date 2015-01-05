@@ -11,7 +11,7 @@ use File::Spec;
 use Scalar::Util qw/blessed/;
 use Try::Tiny;
 
-our $VERSION = "2.000002";
+our $VERSION = "2.001000";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -277,13 +277,29 @@ sub import {
 		# (the call() method is still exported to the API class).
 		# when call() is, umm, called, we need to create a new instance
 		# of the context class and use forward() on it to handle the
-		# request
-		$forward_target = $root.'::Context';
-		eval "require $forward_target";
-		croak "Can't load context class $forward_target: $@"
-			if $@;
+		# request.
+		# we expect this class to be called $root::Context, but if it
+		# does not exist, we will try going up the hierarchy until we
+		# find one.
+		my $check = $root.'::Context';
+		my $ft;
+		while ($check) {
+			eval "require $check";
+			if ($@) {
+				# go up one level and try again
+				$check =~ s/[^:]+::Context$/Context/;
+			} else {
+				$ft = $check;
+				last;
+			}
+		}
+
+		croak "No context class found"
+			unless $ft;
 		croak "Context class doesn't have create_from_env() method"
-			unless $forward_target->can('create_from_env');
+			unless $ft->can('create_from_env');
+
+		$forward_target = $ft;
 	}
 
 	# export the pre_route and post_route "constructors"
@@ -819,6 +835,12 @@ differently formatted arguments.
 Note that currently, the context class has to be named C<__ROOT__::Context>, where
 C<__ROOT__> is the name of your API's root package. So, for example, if your API's
 root package is named C<MyAPI>, then C<McBain> will expect C<MyAPI::Context>.
+
+I<< B<Note:> since v2.1.0, if C<McBain> doesn't find a package named C<__ROOT__::Context>,
+it will go up the package hierarchy until it finds one. For example, if the root package
+of your API is C<Some::API>, then McBain will try C<Some::API::Context>, then C<Some::Context>,
+then finally C<Context>. This was added to allow the sharing of the same context class
+in a project comprised of several APIs. >>
 
 When writing in contextual mode, your API methods will receive the context object
 instead of the root package/object, and the parameters hash-ref.

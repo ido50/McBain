@@ -507,6 +507,13 @@ MANUAL
     package. So, for example, if your API's root package is named "MyAPI",
     then "McBain" will expect "MyAPI::Context".
 
+    *Note: since v2.1.0, if "McBain" doesn't find a package named
+    "__ROOT__::Context", it will go up the package hierarchy until it finds
+    one. For example, if the root package of your API is "Some::API", then
+    McBain will try "Some::API::Context", then "Some::Context", then finally
+    "Context". This was added to allow the sharing of the same context class
+    in a project comprised of several APIs.*
+
     When writing in contextual mode, your API methods will receive the
     context object instead of the root package/object, and the parameters
     hash-ref.

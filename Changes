@@ -1,6 +1,13 @@
 Revision history for McBain
 
 {{$NEXT}}
+	- Improvement: in contextual mode, if McBain doesn't find a context class under
+	  the root package, it will go up the package hierarchy until it finds one. For
+	  example, if the root package is Some::API, then McBain will try Some::API::Context,
+	  then Some::Context, then finally Context. This was added to allow the sharing of
+	  the same context class in a project comprised of several APIs.
+
+2.000002  2014-08-19 19:23:26+03:00 Asia/Jerusalem
 	- Bugfix _break_path
 
 2.000001  2014-08-19 19:05:15+03:00 Asia/Jerusalem
