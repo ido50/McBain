@@ -4,7 +4,7 @@ use McBain -contextual;
 
 get '/' => (
 	cb => sub {
-		return ref $_[0];
+		return ref $_[1];
 	}
 );
 

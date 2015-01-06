@@ -1,6 +1,8 @@
 Revision history for McBain
 
 {{$NEXT}}
+
+2.001000  2015-01-05 20:29:00+02:00 Asia/Jerusalem
 	- Improvement: in contextual mode, if McBain doesn't find a context class under
 	  the root package, it will go up the package hierarchy until it finds one. For
 	  example, if the root package is Some::API, then McBain will try Some::API::Context,

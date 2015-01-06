@@ -3,8 +3,9 @@ package Mendoza::Math;
 use McBain;
 
 get '/' => (
+	description => 'Returns the status attribute from the parent',
 	cb => sub {
-		return "MATH IS AWESOME";
+		return $_[0]->status
 	}
 );
 
@@ -81,6 +82,8 @@ pre_route {
 	croak { code => 500, error => "math pre_route doesn't like you" }
 		if $ns eq 'GET:/math/pre_route_test';
 };
+
+sub message { 'I CAN HAZ CONSTANTS' }
 
 1;
 __END__
