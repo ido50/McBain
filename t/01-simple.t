@@ -5,7 +5,7 @@ use warnings;
 use strict;
 
 use Mendoza;
-use Test::More tests => 21;
+use Test::More tests => 20;
 use Test::Exception;
 use Data::Dumper;
 use Try::Tiny;
@@ -13,7 +13,6 @@ use Try::Tiny;
 try {
 	my $api = Mendoza->new;
 
-	ok($api->is_root, 'Mendoza is the root');
 	is($api->call('GET:/status'), 'ALL IS WELL', 'status ok');
 	is($api->call('GET:/math'), 'ALL IS WELL', 'math ok #1');
 	is($api->call('GET:/math/'), 'ALL IS WELL', 'math ok #2');

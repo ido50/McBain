@@ -19,7 +19,7 @@ get '/sum' => (
 		two => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($api, $params) = @_;
+		my ($self, $params) = @_;
 
 		return $params->{one} + $params->{two};
 	}
@@ -28,7 +28,7 @@ get '/sum' => (
 get '/sum/(\d+)/(\d+)' => (
 	description => 'Adds two integers from path',
 	cb => sub {
-		my ($api, $params, $one, $two) = @_;
+		my ($self, $params, $one, $two) = @_;
 
 		return $one + $two;
 	}
@@ -41,7 +41,7 @@ get '/diff' => (
 		two => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($api, $params) = @_;
+		my ($self, $params) = @_;
 
 		return $params->{one} - $params->{two};
 	}
@@ -54,7 +54,7 @@ get '/mult' => (
 		two => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($api, $params) = @_;
+		my ($self, $params) = @_;
 
 		return $params->{one} * $params->{two};
 	}
@@ -66,11 +66,11 @@ post '/factorial' => (
 		num => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($api, $params) = @_;
+		my ($self, $params) = @_;
 
-		return $params->{num} <= 1 ? 1 : $api->call('GET:/math/mult', {
+		return $params->{num} <= 1 ? 1 : $self->call('GET:/math/mult', {
 			one => $params->{num},
-			two => $api->call('POST:/math/factorial', { num => $params->{num} - 1 })
+			two => $self->call('POST:/math/factorial', { num => $params->{num} - 1 })
 		});
 	}
 );
@@ -80,7 +80,7 @@ get '/pre_route_test' => (
 );
 
 pre_route {
-	my ($api, $ns, $params) = @_;
+	my ($self, $ns, $params) = @_;
 
 	croak { code => 500, error => "math pre_route doesn't like you" }
 		if $ns eq 'GET:/math/pre_route_test';

@@ -8,6 +8,12 @@ get '/' => (
 	}
 );
 
+get '/forward' => (
+	cb => sub {
+		$_[1]->forward('GET:/')
+	}
+);
+
 sub new { bless {}, shift };
 
 1;

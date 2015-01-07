@@ -2,8 +2,6 @@ package Wolfcastle::Context;
 
 use Moo;
 
-extends 'McBain::Context';
-
 has 'params' => (is => 'rw', default => sub { {} });
 
 has 'path' => (is => 'rw');

@@ -54,9 +54,9 @@ post '/factorial' => (
 	cb => sub {
 		my ($self, $c, $params) = @_;
 
-		return $params->{num} <= 1 ? 1 : $c->forward('GET:/math/mult', {
+		return $params->{num} <= 1 ? 1 : $self->call('GET:/math/mult', {
 			one => $params->{num},
-			two => $c->forward('POST:/math/factorial', { num => $params->{num} - 1 })
+			two => $self->call('POST:/math/factorial', { num => $params->{num} - 1 })
 		});
 	}
 );
