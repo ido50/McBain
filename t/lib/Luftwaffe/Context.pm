@@ -1,25 +1,22 @@
 package Luftwaffe::Context;
 
-use warnings;
-use strict;
+use Moo;
 
-sub new { bless $_[1] || {}, $_[0] }
+extends 'McBain::Context';
 
-sub create_from_env {
-	my ($class, $runner, $env) = @_;
+has 'params' => (is => 'rw', default => sub { {} });
 
-	$class->new({
-		params => $env->{PAYLOAD},
-		path => $env->{ROUTE},
-		method => $env->{METHOD}
-	});
+has 'path' => (is => 'rw');
+
+has 'method' => (is => 'rw');
+
+sub process_env {
+	my ($self, $env) = @_;
+
+	$self->params($env->{PAYLOAD});
+	$self->path($env->{ROUTE});
+	$self->method($env->{METHOD});
 }
-
-sub params { shift->{params} || {} }
-
-sub path { shift->{path} }
-
-sub method { shift->{method} }
 
 1;
 __END__

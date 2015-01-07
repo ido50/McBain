@@ -1,5 +1,8 @@
 package Mendoza::Math;
 
+use Carp;
+
+use Moo;
 use McBain;
 
 get '/' => (
@@ -65,9 +68,9 @@ post '/factorial' => (
 	cb => sub {
 		my ($api, $params) = @_;
 
-		return $params->{num} <= 1 ? 1 : $api->forward('GET:/math/mult', {
+		return $params->{num} <= 1 ? 1 : $api->call('GET:/math/mult', {
 			one => $params->{num},
-			two => $api->forward('POST:/math/factorial', { num => $params->{num} - 1 })
+			two => $api->call('POST:/math/factorial', { num => $params->{num} - 1 })
 		});
 	}
 );

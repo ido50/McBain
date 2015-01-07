@@ -8,7 +8,6 @@ use strict;
 use Brannigan;
 use Carp;
 use File::Spec;
-use Try::Tiny;
 
 our $VERSION = "3.000000";
 $VERSION = eval $VERSION;
@@ -23,17 +22,25 @@ sub import {
 	warnings->import(FATAL => 'all');
 	return if $INFO{$target};
 
+	no strict 'refs';
+
 	# find the root of this API (if it's not the current target)
 	my $root = _find_root($target);
 
-	# create the routes hash for $root
-	$INFO{$root} ||= {};
+	if ($target eq $root) {
+		unshift(@{"${target}::ISA"}, 'McBain::Topic');
 
-	# were there any options passed?
-	if (scalar @_) {
-		my %opts = map { s/^-//; $_ => 1 } @_;
-		# apply the options to the root package
-		$INFO{$root}->{_opts} = \%opts;
+		# create the routes hash for $root
+		$INFO{$root} = {};
+
+		# were there any options passed?
+		if (scalar @_) {
+			my %opts = map { s/^-//; $_ => 1 } @_;
+			# apply the options to the root package
+			$INFO{$root}->{_opts} = \%opts;
+		}
+	} else {
+		unshift(@{"${target}::ISA"}, ($target =~ m/^(.+)::[^:]+$/)[0]);
 	}
 
 	# figure out the topic name from this class
@@ -43,15 +50,6 @@ sub import {
 		$topic = '/'.lc($rel_name);
 		$topic =~ s!::!/!g;
 	}
-
-	no strict 'refs';
-
-	# export the is_root() subroutine to the target topic,
-	# so that it knows whether it is the root of the API
-	# or not
-	*{"${target}::is_root"} = sub {
-		exists $INFO{$target};
-	};
 
 	# export the provide subroutine to the target topic,
 	# so that it can define routes and methods.
@@ -85,8 +83,6 @@ sub import {
 		};
 	}
 
-	my $forward_target = $target;
-
 	if ($target eq $root && $INFO{$root}->{_opts} && $INFO{$root}->{_opts}->{contextual}) {
 		# we're running in contextual mode, which means the API
 		# should have a Context class called $root::Context, and this
@@ -98,25 +94,21 @@ sub import {
 		# we expect this class to be called $root::Context, but if it
 		# does not exist, we will try going up the hierarchy until we
 		# find one.
+		my $ctx = 'McBain::Context'; # the default
+
 		my $check = $root.'::Context';
-		my $ft;
-		while ($check) {
+		while ($check =~ m/::/) {
 			eval "require $check";
 			if ($@) {
 				# go up one level and try again
 				$check =~ s/[^:]+::Context$/Context/;
 			} else {
-				$ft = $check;
+				$ctx = $check;
 				last;
 			}
 		}
 
-		croak "No context class found"
-			unless $ft;
-		croak "Context class doesn't have create_from_env() method"
-			unless $ft->can('create_from_env');
-
-		$forward_target = $ft;
+		$INFO{$root}->{_opts}->{context_class} = $ctx;
 	}
 
 	# export the pre_route and post_route "constructors"
@@ -126,125 +118,6 @@ sub import {
 			$INFO{$root}->{"_$mod"}->{$topic} = shift;
 		};
 	}
-
-	if ($target eq $root) {
-		# export the call method, the one that actually
-		# executes API methods
-		*{"${target}::call"} = sub {
-			my ($self, @args) = @_;
-
-			return try {
-				confess { code => 400, error => "Namespace must match <METHOD>:<ROUTE> where METHOD is one of GET, POST, PUT, DELETE or OPTIONS" }
-					unless $args[0] =~ m/^(GET|POST|PUT|DELETE|OPTIONS):[^:]+$/;
-
-				my ($method, $route) = split(/:/, $args[0]);
-
-				my $env = {
-					METHOD	=> $method,
-					ROUTE		=> $route,
-					PAYLOAD	=> $args[1]
-				};
-
-				my $ctx = $INFO{$root}->{_opts} && $INFO{$root}->{_opts}->{contextual} ?
-					$forward_target->create_from_env('McBain::Directly', $env, @args) :
-						$self;
-
-				# handle the request
-				return $ctx->forward($env->{METHOD}.':'.$env->{ROUTE}, $env->{PAYLOAD});
-			} catch {
-				# an exception was caught, make sure it's in the standard
-				# McBain exception format and rethrow
-				if (ref $_ && ref $_ eq 'HASH' && exists $_->{code} && exists $_->{error}) {
-					confess $_;
-				} else {
-					confess { code => 500, error => $_ };
-				}
-			};
-		};
-
-		# export the forward method, which is both used internally
-		# in call(), and can be used by API authors within API
-		# methods
-		*{"${forward_target}::forward"} = sub {
-			my ($ctx, $meth_and_route, $payload) = @_;
-
-			my ($meth, $route) = split(/:/, $meth_and_route);
-
-			# make sure route ends with a slash
-			$route .= '/'
-				unless $route =~ m{/$};
-
-			my @captures;
-
-			# is there a direct route that equals the request?
-			my $r = $INFO{$root}->{$route};
-
-			# if not, is there a regex route that does?
-			unless ($r) {
-				foreach (keys %{$INFO{$root}}) {
-					next unless @captures = ($route =~ m/^$_$/);
-					$r = $INFO{$root}->{$_};
-					last;
-				}
-			}
-
-			confess { code => 404, error => "Route $route not found" }
-				unless $r;
-
-			# is this an OPTIONS request?
-			if ($meth eq 'OPTIONS') {
-				my %options;
-				foreach my $m (grep { !/^_/ } keys %$r) {
-					%{$options{$m}} = map { $_ => $r->{$m}->{$_} } grep($_ ne 'cb', keys(%{$r->{$m}}));
-				}
-				return \%options;
-			}
-
-			# does this route have the HTTP method?
-			confess { code => 405, error => "Method $meth not available for route $route" }
-				unless exists $r->{$meth};
-
-			# process parameters
-			my $params_ret = Brannigan::process({ params => $r->{$meth}->{params} }, $payload);
-
-			confess { code => 400, error => "Parameters failed validation", rejects => $params_ret->{_rejects} }
-				if $params_ret->{_rejects};
-
-			# break the path into "directories", run pre_route methods
-			# for each directory (if any)
-			my @parts = _break_path($route);
-
-			# find the topic object (or create it if it doesn't exist yet)
-			$r->{_object} ||= $r->{_class}->new;
-
-			# are there pre_routes?
-			my @base_args = ($r->{_object});
-			push(@base_args, $ctx)
-				if $INFO{$root}->{_opts} && $INFO{$root}->{_opts}->{contextual};
-
-			foreach my $part (@parts) {
-				$INFO{$root}->{_pre_route}->{$part}->(@base_args, $meth_and_route, $params_ret)
-					if $INFO{$root}->{_pre_route} && $INFO{$root}->{_pre_route}->{$part};
-			}
-
-			my $res = $r->{$meth}->{cb}->(@base_args, $params_ret, @captures);
-
-			# are there post_routes?
-			foreach my $part (@parts) {
-				$INFO{$root}->{_post_route}->{$part}->(@base_args, $meth_and_route, \$res)
-					if $INFO{$root}->{_post_route} && $INFO{$root}->{_post_route}->{$part};
-			}
-
-			return $res;
-		};
-	} else {
-		# make the target inherit its parent
-		unshift(@{"${target}::ISA"}, ($target =~ m/^(.+)::[^:]+$/)[0]);
-	}
-
-	# we're done with exporting, now lets try to load all
-	# child topics (if any), and collect their method definitions
-	_load_topics($target, $INFO{$root}->{_opts});
 }
 
 # _find_root( $current_class )
@@ -264,40 +137,133 @@ sub _find_root {
 	return $class;
 }
 
-# _load_topics( $base, [ \%opts ] )
-# -- finds and loads the child topics of the class we're
-#    currently importing into, automatically requiring
-#    them and thus importing McBain into them as well
+1;
 
-sub _load_topics {
-	my ($base, $opts) = @_;
+package McBain::Topic;
 
-	# this code is based on code from Module::Find
+use warnings;
+use strict;
 
-	my $pkg_dir = File::Spec->catdir(split(/::/, $base));
+use Carp;
+use Try::Tiny;
+use Moo;
 
-	my @inc_dirs = map { File::Spec->catdir($_, $pkg_dir) } @INC;
+# export the call method, the one that actually
+# executes API methods
+sub call {
+	my ($self, $namespace, $payload, $runner, $runner_data) = @_;
 
-	foreach my $inc_dir (@inc_dirs) {
-		next unless -d $inc_dir;
+	return try {
+		confess { code => 400, error => "Namespace must match <METHOD>:<ROUTE> where METHOD is one of GET, POST, PUT, DELETE or OPTIONS" }
+			unless $namespace =~ m/^(GET|POST|PUT|DELETE|OPTIONS):[^:]+$/;
 
-		opendir DIR, $inc_dir;
-		my @pms = grep { !-d && m/\.pm$/ } readdir DIR;
-		closedir DIR;
+		my ($method, $route) = split(/:/, $namespace);
 
-		foreach my $file (@pms) {
-			my $pkg = $file;
-			$pkg =~ s/\.pm$//;
-			$pkg = join('::', File::Spec->splitdir($pkg));
+		# make sure route ends with a slash
+		$route .= '/'
+			unless $route =~ m{/$};
 
-			my $req = File::Spec->catdir($inc_dir, $file);
+		# create the McBain environment hashref
+		my $env = {
+			METHOD	=> $method,
+			ROUTE		=> $route,
+			PAYLOAD	=> $payload
+		};
 
-			next if $req =~ m!/Context.pm$!
-				&& $opts && $opts->{contextual};
-
-			require $req;
+		if ($runner) {
+			$env->{RUNNER} = $runner;
+			$env->{RUNNER_DATA} = $runner_data
+				if $runner_data;
 		}
-	}
+
+		my @captures;
+
+		my $root = $self->find_root;
+
+		# is there a direct route that equals the request?
+		my $r = $McBain::INFO{$root}->{$env->{ROUTE}};
+
+		# if not, is there a regex route that does?
+		unless ($r) {
+			foreach (keys %{$McBain::INFO{$root}}) {
+				next unless @captures = ($env->{ROUTE} =~ m/^$_$/);
+				$r = $McBain::INFO{$root}->{$_};
+				last;
+			}
+		}
+
+		confess { code => 404, error => "Route $env->{ROUTE} not found" }
+			unless $r;
+
+		# is this an OPTIONS request?
+		if ($env->{METHOD} eq 'OPTIONS') {
+			my %options;
+			foreach my $m (grep { !/^_/ } keys %$r) {
+				%{$options{$m}} = map { $_ => $r->{$m}->{$_} } grep($_ ne 'cb', keys(%{$r->{$m}}));
+			}
+			return \%options;
+		}
+
+		# does this route have the HTTP method?
+		confess { code => 405, error => "Method $env->{METHOD} not available for route $env->{ROUTE}" }
+			unless exists $r->{$env->{METHOD}};
+
+		# process parameters
+		my $params = Brannigan::process({ params => $r->{$env->{METHOD}}->{params} }, $env->{PAYLOAD});
+
+		confess { code => 400, error => "Parameters failed validation", rejects => $params->{_rejects} }
+			if $params->{_rejects};
+
+		# break the path into "directories", run pre_route methods
+		# for each directory (if any)
+		my @parts = _break_path($env->{ROUTE});
+
+		# find the topic object
+		my @base_args = ($McBain::INFO{$root}->{_objects}->{$r->{_class}});
+
+		# should we create a context object?
+		if ($McBain::INFO{$root}->{_opts} && $McBain::INFO{$root}->{_opts}->{contextual}) {
+			my $ctx = $McBain::INFO{$root}->{_opts}->{context_class}->new(_api => $self);
+			$ctx->can('process_env') && $ctx->process_env($env);
+			push(@base_args, $ctx);
+		}
+
+		# are there pre_routes?
+		foreach my $part (@parts) {
+			$McBain::INFO{$root}->{_pre_route}->{$part}->(@base_args, $namespace, $params)
+				if $McBain::INFO{$root}->{_pre_route} && $McBain::INFO{$root}->{_pre_route}->{$part};
+		}
+
+		# invoke the actual route
+		my $res = $r->{$env->{METHOD}}->{cb}->(@base_args, $params, @captures);
+
+		# are there post_routes?
+		foreach my $part (@parts) {
+			$McBain::INFO{$root}->{_post_route}->{$part}->(@base_args, $namespace, \$res)
+				if $McBain::INFO{$root}->{_post_route} && $McBain::INFO{$root}->{_post_route}->{$part};
+		}
+
+		return $res;
+	} catch {
+		# an exception was caught, make sure it's in the standard
+		# McBain exception format and rethrow
+		if (ref $_ && ref $_ eq 'HASH' && exists $_->{code} && exists $_->{error}) {
+			confess $_;
+		} else {
+			confess { code => 500, error => $_ };
+		}
+	};
+}
+
+# export the is_root() subroutine to the target topic,
+# so that it knows whether it is the root of the API
+# or not
+sub is_root {
+	$_[0]->find_root eq ref($_[0]);
+}
+
+sub find_root {
+	McBain::_find_root(ref($_[0]));
 }
 
 # _break_path( $path )
@@ -323,6 +289,66 @@ sub _break_path {
 	unshift(@path, '/');
 
 	return @path;
+}
+
+sub BUILD {
+	my $self = shift;
+
+	# we're done with exporting, now lets try to load all
+	# child topics (if any), and collect their method definitions
+	my $base = ref($self);
+	my $root = $self->find_root;
+	my $opts = $McBain::INFO{$root}->{_opts};
+
+	$McBain::INFO{$root}->{_objects} ||= {};
+	$McBain::INFO{$root}->{_objects}->{$base} = $self;
+
+	# this code is based on code from Module::Find
+
+	my $pkg_dir = File::Spec->catdir(split(/::/, $base));
+
+	my @inc_dirs = map { File::Spec->catdir($_, $pkg_dir) } @INC;
+
+	foreach my $inc_dir (@inc_dirs) {
+		next unless -d $inc_dir;
+
+		opendir DIR, $inc_dir;
+		my @pms = grep { !-d && m/\.pm$/ } readdir DIR;
+		closedir DIR;
+
+		foreach my $file (@pms) {
+			my $pkg = $file;
+			$pkg =~ s/\.pm$//;
+			$pkg = join('::', File::Spec->splitdir($pkg));
+
+			$pkg = $base.'::'.$pkg;
+
+			my $req = File::Spec->catdir($inc_dir, $file);
+
+			next if $req =~ m!/Context.pm$!
+				&& $opts && $opts->{contextual};
+
+			require $req;
+			$pkg->new;
+		}
+	}
+}
+
+1;
+
+package McBain::Context;
+
+use Moo;
+
+has '_api' => (
+	is => 'ro',
+	required => 1
+);
+
+sub forward {
+	my $self = shift;
+
+	$self->_api->call(@_);
 }
 
 1;

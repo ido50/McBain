@@ -1,6 +1,14 @@
 package Mendoza;
 
+use Carp;
+
+use Moo;
 use McBain;
+
+has 'status' => (
+	is => 'ro',
+	default => sub { 'ALL IS WELL' }
+);
 
 get '/' => (
 	description => 'Returns the name of the API',
@@ -31,10 +39,6 @@ post_route {
 	$$result = 'post_route messed you up'
 		if $ns eq 'GET:/post_route_test';
 };
-
-sub new { bless { status => 'ALL IS WELL' }, shift };
-
-sub status { shift->{status} }
 
 1;
 __END__

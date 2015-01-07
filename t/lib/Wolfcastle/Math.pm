@@ -1,5 +1,6 @@
 package Wolfcastle::Math;
 
+use Moo;
 use McBain -contextual;
 
 get '/sum' => (
