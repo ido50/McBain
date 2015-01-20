@@ -1,14 +1,14 @@
 package Wolfcastle::Context;
 
-use Moo;
+use McBain::Mo;
 
-has 'params' => (is => 'rw', default => sub { {} });
+has 'params';
 
-has 'path' => (is => 'rw');
+has 'path';
 
-has 'method' => (is => 'rw');
+has 'method';
 
-has 'user' => (is => 'ro', default => sub { { name => 'ido', email => 'my@email.com' } });
+has 'user';
 
 sub process_env {
 	my ($self, $env) = @_;
@@ -16,6 +16,7 @@ sub process_env {
 	$self->params($env->{PAYLOAD});
 	$self->path($env->{ROUTE});
 	$self->method($env->{METHOD});
+	$self->user({ name => 'ido', email => 'my@email.com' });
 }
 
 sub status { 'ALL IS WELL' }

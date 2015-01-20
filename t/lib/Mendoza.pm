@@ -2,13 +2,10 @@ package Mendoza;
 
 use Carp;
 
-use Moo;
+use McBain::Mo;
 use McBain;
 
-has 'status' => (
-	is => 'ro',
-	default => sub { 'ALL IS WELL' }
-);
+has 'status';
 
 get '/' => (
 	description => 'Returns the name of the API',
@@ -25,6 +22,8 @@ get '/status' => (
 get '/(pre|post)_route_test' => (
 	cb => sub { 'asdf' }
 );
+
+sub BUILD { $_[0]->status('ALL IS WELL') }
 
 pre_route {
 	my ($self, $ns, $params) = @_;

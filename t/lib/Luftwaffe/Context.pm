@@ -1,14 +1,14 @@
 package Luftwaffe::Context;
 
-use Moo;
+use McBain::Mo;
 
-has 'params' => (is => 'rw', default => sub { {} });
+has 'params';
 
-has 'path' => (is => 'rw');
+has 'path';
 
-has 'method' => (is => 'rw');
+has 'method';
 
-has 'topic' => (is => 'rw');
+has 'topic';
 
 sub process_env {
 	my ($self, $topic, $env) = @_;
