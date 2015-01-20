@@ -5,13 +5,15 @@ use warnings;
 use strict;
 
 use Mendoza;
-use Test::More tests => 20;
+use Test::More tests => 22;
 use Test::Exception;
 use Data::Dumper;
 use Try::Tiny;
 
 try {
 	my $api = Mendoza->new;
+
+	use Data::Dumper; print STDERR Dumper($McBain::INFO{'Mendoza'});
 
 	is($api->call('GET:/status'), 'ALL IS WELL', 'status ok');
 	is($api->call('GET:/math'), 'ALL IS WELL', 'math ok #1');
@@ -32,6 +34,8 @@ try {
 	dies_ok { $api->call('GET:/pre_route_test') } 'pre_route ok';
 	dies_ok { $api->call('GET:/math/pre_route_test') } '2nd level pre_route ok';
 	is($api->call('GET:/post_route_test'), 'post_route messed you up', 'post_route ok');
+	is($api->call('GET:/math/dodgeball'), 'Dodgeball', 'dodgeball route in inheriting topic ok');
+	is($api->call('GET:/math/stiller'), 'Ben Stiller', 'stiller route in multi-inheriting topic ok');
 
 	is_deeply($api->call('OPTIONS:/math/sum'), {
 		GET => {
