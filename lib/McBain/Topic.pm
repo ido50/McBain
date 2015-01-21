@@ -10,6 +10,8 @@ use McBain::Mo;
 sub call {
 	my ($self, $namespace, $payload, $runner, $runner_data) = @_;
 
+	print "Handling request for $namespace from ", $runner || 'Perl', "\n";
+
 	return try {
 		confess { code => 400, error => "Namespace must match <METHOD>:<ROUTE> where METHOD is one of GET, POST, PUT, DELETE or OPTIONS" }
 			unless $namespace =~ m/^(GET|POST|PUT|DELETE|OPTIONS):([^:]+)$/;
@@ -19,6 +21,8 @@ sub call {
 		# make sure route ends with a slash
 		$route .= '/'
 			unless $route =~ m{/$};
+
+		print "\tCalculated route as $route\n";
 
 		# create the McBain environment hashref
 		my $env = {
@@ -36,6 +40,7 @@ sub call {
 		# should we create a context object?
 		my $root = McBain::_find_root(ref($self));
 		if ($McBain::INFO{$root}->{_opts} && $McBain::INFO{$root}->{_opts}->{contextual}) {
+			print "\tCreating object of context class $McBain::INFO{$root}->{_opts}->{context_class}\n";
 			my $ctx = $McBain::INFO{$root}->{_opts}->{context_class}->new;
 			$ctx->can('process_env') && $ctx->process_env($self, $env);
 			$env->{CONTEXT} = $ctx;
@@ -45,16 +50,20 @@ sub call {
 	} catch {
 		# an exception was caught, make sure it's in the standard
 		# McBain exception format and rethrow
-		if (ref $_ && ref $_ eq 'HASH' && exists $_->{code} && exists $_->{error}) {
-			confess $_;
-		} else {
-			confess { code => 500, error => $_ };
-		}
+		my $err = ref $_ && ref $_ eq 'HASH' && exists $_->{code} && exists $_->{error} ?
+			$_ :
+				{ code => 500, error => $_ };
+		
+		print "\tException $err->{code} caught: $err->{error}\n";
+
+		confess $err;
 	};
 }
 
 sub forward {
 	my ($self, $env) = @_;
+
+	print "\tForwarding to $env->{ROUTE} with method $env->{METHOD}\n";
 
 	my @captures;
 
