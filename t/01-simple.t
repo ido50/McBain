@@ -13,8 +13,6 @@ use Try::Tiny;
 try {
 	my $api = Mendoza->new;
 
-	use Data::Dumper; print STDERR Dumper($McBain::INFO{'Mendoza'});
-
 	is($api->call('GET:/status'), 'ALL IS WELL', 'status ok');
 	is($api->call('GET:/math'), 'ALL IS WELL', 'math ok #1');
 	is($api->call('GET:/math/'), 'ALL IS WELL', 'math ok #2');
