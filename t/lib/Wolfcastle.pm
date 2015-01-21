@@ -1,6 +1,6 @@
 package Wolfcastle;
 
-use Moo;
+use McBain::Mo;
 use McBain -contextual;
 
 get '/' => (

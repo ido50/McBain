@@ -25,18 +25,17 @@ sub import {
 	# find the root of this API (if it's not the current target)
 	my $root = _find_root($target);
 
+	# were there any options passed?
+	my %_opts = map { my $o = $_; $o =~ s/^-//; $o => 1 } @_;
+
 	if ($target eq $root) {
 		unshift(@{"${target}::ISA"}, 'McBain::Topic');
 
 		# create the routes hash for $root
-		$INFO{$root} = {};
+		$INFO{$root} = { _topics => {} };
 
-		# were there any options passed?
-		if (scalar @_) {
-			my %opts = map { my $opt = $_; $opt =~ s/^-//; $opt => 1 } @_;
-			# apply the options to the root package
-			$INFO{$root}->{_opts} = \%opts;
-		}
+		$INFO{$root}->{_opts} = \%_opts
+			if %_opts;
 	} else {
 		unshift(@{"${target}::ISA"}, ($target =~ m/^(.+)::[^:]+$/)[0]);
 	}
@@ -44,10 +43,18 @@ sub import {
 	# figure out the topic name from this class
 	my $topic = '/';
 	unless ($target eq $root) {
-		my $rel_name = ($target =~ m/^${root}::(.+)$/)[0];
-		$topic = '/'.lc($rel_name);
-		$topic =~ s!::!/!g;
+		my ($parent, $me) = ($target =~ m/^(.+)::([^:]+)$/);
+		if ($_opts{inherit}) {
+			# class inherits parent's topic
+			$topic = $INFO{$root}->{_topics}->{$parent};
+		} else {
+			$topic = '/'.lc($me);
+			$topic = $INFO{$root}->{_topics}->{$parent}.'/'.lc($me)
+				unless $parent eq $root;
+		}
 	}
+
+	$INFO{$root}->{_topics}->{$target} = $topic;
 
 	# export the provide subroutine to the target topic,
 	# so that it can define routes and methods.

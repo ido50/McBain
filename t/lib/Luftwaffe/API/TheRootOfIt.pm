@@ -1,5 +1,6 @@
 package Luftwaffe::API::TheRootOfIt;
 
+use McBain::Mo;
 use McBain -contextual;
 
 get '/' => (
@@ -13,8 +14,6 @@ get '/forward' => (
 		$_[1]->forward('GET:/')
 	}
 );
-
-sub new { bless {}, shift };
 
 1;
 __END__

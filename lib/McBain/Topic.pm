@@ -5,8 +5,7 @@ use Carp;
 use File::Spec;
 use Try::Tiny;
 
-use Moo;
-use namespace::clean;
+use McBain::Mo;
 
 sub call {
 	my ($self, $namespace, $payload, $runner, $runner_data) = @_;

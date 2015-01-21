@@ -2,7 +2,7 @@ package Mendoza::Math;
 
 use Carp;
 
-use Moo;
+use McBain::Mo;
 use McBain;
 
 get '/' => (
