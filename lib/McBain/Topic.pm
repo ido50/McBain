@@ -34,74 +34,15 @@ sub call {
 				if $runner_data;
 		}
 
-		my @captures;
-
-		my $root = McBain::_find_root(ref($self));
-
-		# is there a direct route that equals the request?
-		my $r = $McBain::INFO{$root}->{$env->{ROUTE}};
-
-		# if not, is there a regex route that does?
-		unless ($r) {
-			foreach (keys %{$McBain::INFO{$root}}) {
-				next unless @captures = ($env->{ROUTE} =~ m/^$_$/);
-				$r = $McBain::INFO{$root}->{$_};
-				last;
-			}
-		}
-
-		confess { code => 404, error => "Route $env->{ROUTE} not found" }
-			unless $r;
-
-		# is this an OPTIONS request?
-		if ($env->{METHOD} eq 'OPTIONS') {
-			my %options;
-			foreach my $m (grep { !/^_/ } keys %$r) {
-				%{$options{$m}} = map { $_ => $r->{$m}->{$_} } grep($_ ne 'cb', keys(%{$r->{$m}}));
-			}
-			return \%options;
-		}
-
-		# does this route have the HTTP method?
-		confess { code => 405, error => "Method $env->{METHOD} not available for route $env->{ROUTE}" }
-			unless exists $r->{$env->{METHOD}};
-
-		# process parameters
-		my $params = Brannigan::process({ params => $r->{$env->{METHOD}}->{params} }, $env->{PAYLOAD});
-
-		confess { code => 400, error => "Parameters failed validation", rejects => $params->{_rejects} }
-			if $params->{_rejects};
-
-		# break the path into "directories", run pre_route methods
-		# for each directory (if any)
-		my @parts = _break_path($env->{ROUTE});
-
-		# find the topic object
-		my @base_args = ($McBain::INFO{$root}->{_objects}->{$r->{_class}});
-
 		# should we create a context object?
+		my $root = McBain::_find_root(ref($self));
 		if ($McBain::INFO{$root}->{_opts} && $McBain::INFO{$root}->{_opts}->{contextual}) {
 			my $ctx = $McBain::INFO{$root}->{_opts}->{context_class}->new;
 			$ctx->can('process_env') && $ctx->process_env($self, $env);
-			push(@base_args, $ctx);
+			$env->{CONTEXT} = $ctx;
 		}
 
-		# are there pre_routes?
-		foreach my $part (@parts) {
-			$McBain::INFO{$root}->{_pre_route}->{$part}->(@base_args, $namespace, $params)
-				if $McBain::INFO{$root}->{_pre_route} && $McBain::INFO{$root}->{_pre_route}->{$part};
-		}
-
-		# invoke the actual route
-		my $res = $r->{$env->{METHOD}}->{cb}->(@base_args, $params, @captures);
-
-		# are there post_routes?
-		foreach my $part (@parts) {
-			$McBain::INFO{$root}->{_post_route}->{$part}->(@base_args, $namespace, \$res)
-				if $McBain::INFO{$root}->{_post_route} && $McBain::INFO{$root}->{_post_route}->{$part};
-		}
-
-		return $res;
+		return $self->forward($env);
 	} catch {
 		# an exception was caught, make sure it's in the standard
 		# McBain exception format and rethrow
@@ -111,6 +52,74 @@ sub call {
 			confess { code => 500, error => $_ };
 		}
 	};
+}
+
+sub forward {
+	my ($self, $env) = @_;
+
+	my @captures;
+
+	my $root = McBain::_find_root(ref($self));
+
+	# is there a direct route that equals the request?
+	my $r = $McBain::INFO{$root}->{$env->{ROUTE}};
+
+	# if not, is there a regex route that does?
+	unless ($r) {
+		foreach (keys %{$McBain::INFO{$root}}) {
+			next unless @captures = ($env->{ROUTE} =~ m/^$_$/);
+			$r = $McBain::INFO{$root}->{$_};
+			last;
+		}
+	}
+
+	confess { code => 404, error => "Route $env->{ROUTE} not found" }
+		unless $r;
+
+	# is this an OPTIONS request?
+	if ($env->{METHOD} eq 'OPTIONS') {
+		my %options;
+		foreach my $m (grep { !/^_/ } keys %$r) {
+			%{$options{$m}} = map { $_ => $r->{$m}->{$_} } grep($_ ne 'cb', keys(%{$r->{$m}}));
+		}
+		return \%options;
+	}
+
+	# does this route have the HTTP method?
+	confess { code => 405, error => "Method $env->{METHOD} not available for route $env->{ROUTE}" }
+		unless exists $r->{$env->{METHOD}};
+
+	# process parameters
+	my $params = Brannigan::process({ params => $r->{$env->{METHOD}}->{params} }, $env->{PAYLOAD});
+
+	confess { code => 400, error => "Parameters failed validation", rejects => $params->{_rejects} }
+		if $params->{_rejects};
+
+	# break the path into "directories", run pre_route methods
+	# for each directory (if any)
+	my @parts = _break_path($env->{ROUTE});
+
+	# find the topic object
+	my @base_args = ($McBain::INFO{$root}->{_objects}->{$r->{_class}});
+	push(@base_args, $env->{CONTEXT})
+		if $env->{CONTEXT};
+
+	# are there pre_routes?
+	foreach my $part (@parts) {
+		$McBain::INFO{$root}->{_pre_route}->{$part}->(@base_args, $env->{METHOD}.':'.$env->{ROUTE}, $params)
+			if $McBain::INFO{$root}->{_pre_route} && $McBain::INFO{$root}->{_pre_route}->{$part};
+	}
+
+	# invoke the actual route
+	my $res = $r->{$env->{METHOD}}->{cb}->(@base_args, $params, @captures);
+
+	# are there post_routes?
+	foreach my $part (@parts) {
+		$McBain::INFO{$root}->{_post_route}->{$part}->(@base_args, $env->{METHOD}.':'.$env->{ROUTE}, \$res)
+			if $McBain::INFO{$root}->{_post_route} && $McBain::INFO{$root}->{_post_route}->{$part};
+	}
+
+	return $res;
 }
 
 sub BUILD {

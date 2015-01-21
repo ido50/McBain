@@ -83,7 +83,7 @@ pre_route {
 	my ($self, $ns, $params) = @_;
 
 	croak { code => 500, error => "math pre_route doesn't like you" }
-		if $ns eq 'GET:/math/pre_route_test';
+		if $ns eq 'GET:/math/pre_route_test/';
 };
 
 sub message { 'I CAN HAZ CONSTANTS' }

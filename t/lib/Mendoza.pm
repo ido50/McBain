@@ -30,14 +30,14 @@ pre_route {
 	my ($self, $ns, $params) = @_;
 
 	croak { code => 500, error => "pre_route doesn't like you" }
-		if $ns eq 'GET:/pre_route_test';
+		if $ns eq 'GET:/pre_route_test/';
 };
 
 post_route {
 	my ($self, $ns, $result) = @_;
 
 	$$result = 'post_route messed you up'
-		if $ns eq 'GET:/post_route_test';
+		if $ns eq 'GET:/post_route_test/';
 };
 
 1;
