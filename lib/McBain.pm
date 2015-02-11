@@ -17,9 +17,6 @@ sub import {
 	my $target = caller;
 	return if $target eq 'main' || $INFO{$target};
 
-	strict->import;
-	warnings->import(FATAL => 'all');
-
 	no strict 'refs';
 
 	# find the root of this API (if it's not the current target)
@@ -127,16 +124,11 @@ sub import {
 #    very well be the module we're currently importing into
 
 sub _find_root {
-	my $class = shift;
-
-	my $copy = $class;
-	while ($copy =~ m/::[^:]+$/) {
-		return $`
-			if $INFO{$`};
-		$copy = $`;
+	$_ = $_[0];
+	while (s/::.+$//) {
+		$INFO{$_} && return $_;
 	}
-
-	return $class;
+	$_[0];
 }
 
 1;

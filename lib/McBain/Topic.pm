@@ -180,22 +180,7 @@ sub BUILD {
 sub _break_path {
 	my $path = shift;
 
-	my $copy = $path;
-
-	my @path;
-
-	unless ($copy eq '/') {
-		chop($copy);
-
-		while (length($copy)) {
-			unshift(@path, $copy);
-			$copy =~ s!/[^/]+$!!;
-		}
-	}
-
-	unshift(@path, '/');
-
-	return @path;
+	return $path ? (_break_path($path =~ m!^(.+/)[^/]+!), substr($path, 0, -1)) : ('/');
 }
 
 1;
