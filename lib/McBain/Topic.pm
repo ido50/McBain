@@ -113,18 +113,18 @@ sub forward {
 		if $env->{CONTEXT};
 
 	# are there pre_routes?
-	foreach my $part (@parts) {
-		$McBain::INFO{$root}->{_pre_route}->{$part}->(@base_args, $env->{METHOD}.':'.$env->{ROUTE}, $params)
-			if $McBain::INFO{$root}->{_pre_route} && $McBain::INFO{$root}->{_pre_route}->{$part};
+	foreach (@parts) {
+		$McBain::INFO{$root}->{_pre_route}->{$_}->(@base_args, $env->{METHOD}.':'.$env->{ROUTE}, $params)
+			if $McBain::INFO{$root}->{_pre_route} && $McBain::INFO{$root}->{_pre_route}->{$_};
 	}
 
 	# invoke the actual route
 	my $res = $r->{$env->{METHOD}}->{cb}->(@base_args, $params, @captures);
 
 	# are there post_routes?
-	foreach my $part (@parts) {
-		$McBain::INFO{$root}->{_post_route}->{$part}->(@base_args, $env->{METHOD}.':'.$env->{ROUTE}, \$res)
-			if $McBain::INFO{$root}->{_post_route} && $McBain::INFO{$root}->{_post_route}->{$part};
+	foreach (@parts) {
+		$McBain::INFO{$root}->{_post_route}->{$_}->(@base_args, $env->{METHOD}.':'.$env->{ROUTE}, \$res)
+			if $McBain::INFO{$root}->{_post_route} && $McBain::INFO{$root}->{_post_route}->{$_};
 	}
 
 	return $res;
@@ -132,55 +132,23 @@ sub forward {
 
 sub BUILD {
 	my $self = shift;
+	my $class = ref $self;
 
-	# we're done with exporting, now lets try to load all
-	# child topics (if any), and collect their method definitions
-	my $base = ref($self);
-	my $root = McBain::_find_root($base);
-	my $opts = $McBain::INFO{$root}->{_opts};
+	# create objects for all API topics if we're the root
+	if ($class eq McBain::_find_root($class)) {
+		$McBain::INFO{$class}->{_objects} = { $class => $self };
 
-	$McBain::INFO{$root}->{_objects} ||= {};
-	$McBain::INFO{$root}->{_objects}->{$base} = $self;
-
-	# this code is based on code from Module::Find
-
-	my $pkg_dir = File::Spec->catdir(split(/::/, $base));
-
-	my @inc_dirs = map { File::Spec->catdir($_, $pkg_dir) } @INC;
-
-	foreach my $inc_dir (@inc_dirs) {
-		next unless -d $inc_dir;
-
-		opendir DIR, $inc_dir;
-		my @pms = grep { !-d && m/\.pm$/ } readdir DIR;
-		closedir DIR;
-
-		foreach my $file (@pms) {
-			my $pkg = $file;
-			$pkg =~ s/\.pm$//;
-			$pkg = join('::', File::Spec->splitdir($pkg));
-
-			$pkg = $base.'::'.$pkg;
-
-			my $req = File::Spec->catdir($inc_dir, $file);
-
-			next if $req =~ m!/Context.pm$!
-				&& $opts && $opts->{contextual};
-
-			require $req;
-			$pkg->new;
+		foreach (sort grep { $_ ne $class } keys %{$McBain::INFO{$class}->{_topics}}) {
+			$McBain::INFO{$class}->{_objects}->{$_} = $_->new;
 		}
 	}
 }
 
 # _break_path( $path )
-# -- breaks a route/path into a list of "directories",
-#    starting from the root and up to the full path
+# -- breaks path into list of "directories", starting from the root and up to the full path
 
 sub _break_path {
-	my $path = shift;
-
-	return $path ? (_break_path($path =~ m!^(.+/)[^/]+!), substr($path, 0, -1)) : ('/');
+	$_[0] ? (_break_path($_[0] =~ m!^(.+/)[^/]+!), substr($_[0], 0, -1)) : ('/');
 }
 
 1;

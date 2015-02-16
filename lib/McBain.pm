@@ -23,7 +23,7 @@ sub import {
 	my $root = _find_root($target);
 
 	# were there any options passed?
-	my %_opts = map { my $o = $_; $o =~ s/^-//; $o => 1 } @_;
+	my %_opts = map { (my $o = $_) =~ s/^-//; $o => 1 } @_;
 
 	if ($target eq $root) {
 		unshift(@{"${target}::ISA"}, 'McBain::Topic');
@@ -74,15 +74,8 @@ sub import {
 
 	# export shortcuts to the provide() subroutine
 	# per http methods
-	foreach my $meth (
-		[qw/get GET/],
-		[qw/put PUT/],
-		[qw/post POST/],
-		[qw/del DELETE/]
-	) {
-		*{$target.'::'.$meth->[0]} = sub {
-			&{"${target}::provide"}($meth->[1], @_);
-		};
+	foreach my $meth ( [qw/get GET/], [qw/put PUT/], [qw/post POST/], [qw/del DELETE/] ) {
+		*{$target.'::'.$meth->[0]} = sub { &{"${target}::provide"}($meth->[1], @_) };
 	}
 
 	if ($target eq $root && $INFO{$root}->{_opts} && $INFO{$root}->{_opts}->{contextual}) {
@@ -116,6 +109,19 @@ sub import {
 			$INFO{$root}->{"_$mod"} ||= {};
 			$INFO{$root}->{"_$mod"}->{$topic} = shift;
 		};
+	}
+
+	# we're done with exporting, now lets try to load all
+	# child topics (if any)
+	# << this code is based on code from Module::Find >>
+	foreach my $inc_dir (grep { -d $_ } map { File::Spec->catdir($_, split(/::/, $target)) } @INC) {
+		opendir DIR, $inc_dir;
+		my @pms = grep { !-d && m/\.pm$/ && !($INFO{$root}->{_opts} && $INFO{$root}->{_opts}->{contextual} && $_ eq 'Context.pm') } readdir DIR;
+		closedir DIR;
+
+		foreach (@pms) {
+			require File::Spec->catdir($inc_dir, $_);
+		}
 	}
 }
 
