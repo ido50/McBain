@@ -6,7 +6,6 @@ use strict;
 
 use Luftwaffe::API::TheRootOfIt;
 use Test::More tests => 2;
-use Test::Exception;
 use Data::Dumper;
 use Try::Tiny;
 

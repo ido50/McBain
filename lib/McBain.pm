@@ -90,9 +90,12 @@ sub import {
 		my $check = $root.'::Context';
 		while ($check =~ m/::/) {
 			eval "require $check";
-			if ($@) {
-				# go up one level and try again
+			if ($@ && $@ =~ m/^Can't locate/) {
+				# no such class, go up one level and try again
 				$check =~ s/[^:]+::Context$/Context/;
+			} elsif ($@) {
+				# class exists, but failed compilation, throw error
+				confess $@;
 			} else {
 				$ctx = $check;
 				last;
@@ -100,7 +103,7 @@ sub import {
 		}
 
 		$INFO{$root}->{_opts}->{context_class} = $ctx
-			|| croak "No context class found";
+			|| confess "No context class found";
 	}
 
 	# export the pre_route and post_route "constructors"
