@@ -5,7 +5,7 @@ use warnings;
 use strict;
 
 use Mendoza;
-use Test::More tests => 20;
+use Test::More tests => 22;
 use Test::Exception;
 use Data::Dumper;
 use Try::Tiny;
@@ -14,15 +14,15 @@ try {
 	my $api = Mendoza->new;
 
 	is($api->call('GET:/status'), 'ALL IS WELL', 'status ok');
-	is($api->call('GET:/math'), 'MATH IS AWESOME', 'math ok #1');
-	is($api->call('GET:/math/'), 'MATH IS AWESOME', 'math ok #2');
+	is($api->call('GET:/math'), 'ALL IS WELL', 'math ok #1');
+	is($api->call('GET:/math/'), 'ALL IS WELL', 'math ok #2');
 	is($api->call('GET:/math/sum', { one => 1, two => 2 }), 3, 'sum from params ok');
 	is($api->call('GET:/math/sum/1/2'), 3, 'sum from path ok');
 	is($api->call('GET:/math/diff', { one => 3, two => 1 }), 2, 'diff ok');
 	dies_ok { $api->call('GET:/math/factorial', { num => 5 }) } 'factorial dies ok when bad method';
 	is($api->call('POST:/math/factorial', { num => 0 }), 1, 'factorial zero ok');
 	is($api->call('POST:/math/factorial', { num => 5 }), 120, 'factorial non-zero ok');
-	is($api->call('GET:/math/constants'), 'I CAN HAZ CONSTANTS', 'constants ok');
+	is($api->call('GET:/math/constants'), 'ALL IS WELL, AND I CAN HAZ CONSTANTS', 'constants ok');
 	is($api->call('GET:/math/constants/pi'), 3.14159265359, 'pi ok');
 	is($api->call('GET:/math/constants/golden_ratio'), 1.61803398874, 'golden ratio ok');
 	dies_ok { $api->call('GET:/math/constants/golden_ration') } 'bad regex ok';
@@ -32,6 +32,8 @@ try {
 	dies_ok { $api->call('GET:/pre_route_test') } 'pre_route ok';
 	dies_ok { $api->call('GET:/math/pre_route_test') } '2nd level pre_route ok';
 	is($api->call('GET:/post_route_test'), 'post_route messed you up', 'post_route ok');
+	is($api->call('GET:/math/dodgeball'), 'Dodgeball', 'dodgeball route in inheriting topic ok');
+	is($api->call('GET:/math/stiller'), 'Ben Stiller', 'stiller route in multi-inheriting topic ok');
 
 	is_deeply($api->call('OPTIONS:/math/sum'), {
 		GET => {

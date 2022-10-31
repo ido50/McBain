@@ -1,0 +1,54 @@
+This file contains message digests of all files listed in MANIFEST,
+signed via the Module::Signature module, version 0.73.
+
+To verify the content in this distribution, first make sure you have
+Module::Signature installed, then type:
+
+    % cpansign -v
+
+It will check each file's integrity, as well as the signature's
+validity.  If "==> Signature verified OK! <==" is not displayed,
+the distribution may already have been compromised, and you should
+not run its Makefile.PL or Build.PL.
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+SHA1 5da435c938269901b3885ae86f844b5b20aa511d Changes
+SHA1 3dc0c952e2f662d920830fd561e6d0308a5346ef INSTALL
+SHA1 43b9ff0e21a8504c73194bee2acdd52769627608 LICENSE
+SHA1 3802974c1db66d3a8d03d9eb66cc341d4c53c9a8 MANIFEST
+SHA1 0aa434651f4d8185e4f5f80bc310bcd97c8dd374 MANIFEST.SKIP
+SHA1 51dc378b01bd5fbb5097d7fa9af507ec64602b9e META.json
+SHA1 07d667dcee4a13542d0a3c32e8a6d6eff7746e97 Makefile.PL
+SHA1 da39a3ee5e6b4b0d3255bfef95601890afd80709 README
+SHA1 885a5a1fa5ac6dbb92262e7f4ff1c847596ae914 bin/mcbain2pod
+SHA1 13f3b412b68a7a322f84eff8333cd36a58754cca dist.ini
+SHA1 918beb10c537283e44ff2737374284fbf575d528 lib/McBain.pm
+SHA1 66bcfd887a604936fcfb52680e96ca747befe6fa lib/McBain/Mo.pm
+SHA1 1694e31616d9c979f7a76d99c1154ac8001eb0ae lib/McBain/Topic.pm
+SHA1 1c79716e082ccd6c437cedbe672594059ba815db t/00-load.t
+SHA1 da0cb75d751190e434e9043964e9ca1da897a57e t/01-simple.t
+SHA1 52cee206717a66929a614e747f0ec77b390a2b48 t/02-contextual.t
+SHA1 98bb5000d125e0adc4e940b8cf5ff9cc341273fc t/03-context_lookup.t
+SHA1 46c0f3f637271ff4dd1d91bc36b51d77479d1202 t/04-bad_context.t
+SHA1 d129400afb833af209bcae89195ce7066433fbeb t/lib/Greta.pm
+SHA1 c1906522a3320893a6175cacc11fc5ba17eeb6a2 t/lib/Greta/Context.pm
+SHA1 e0e286e80711fed5123ebcaeeffa824d998848da t/lib/Luftwaffe/API/TheRootOfIt.pm
+SHA1 1e4747f18e11e101d5a3b2685292de0d96c4377d t/lib/Luftwaffe/Context.pm
+SHA1 6dff86731b1527ce6f8ec96dc29f36d312ecc1e4 t/lib/Mendoza.pm
+SHA1 9b7836be807a47c8ae3be36a86a8771d36388b15 t/lib/Mendoza/Math.pm
+SHA1 3beedfbe510b1d0a6f28b8afe368d452e20d47f7 t/lib/Mendoza/Math/Constants.pm
+SHA1 e1a1699d6b2e202383640fe0c90686fe3ea7a127 t/lib/Mendoza/Math/Inherits.pm
+SHA1 38fe0fd84dc38085d4914f9525f561c42a81b7be t/lib/Mendoza/Math/Inherits/Too.pm
+SHA1 e750438dd0879056fb1c7f2a1c316a8f10363f25 t/lib/Wolfcastle.pm
+SHA1 fe19cfdd2549b5bbb6c2dae263844e0b03847b4b t/lib/Wolfcastle/Context.pm
+SHA1 c37b369574a7cbd2be0ffac9c53627fc8f2e28f4 t/lib/Wolfcastle/Math.pm
+SHA1 87768d177f8c2e2df9c591cde869e7c8a245555e t/release-dist-manifest.t
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v2
+
+iF4EAREIAAYFAlZV6VgACgkQa4OHQAFM10f3QwD7Br3zBKG3B5s45h7udrsYxt0L
+lP764PceKPIYRcwHWLMA+wYsqGhF/LgRvSgTPvTt2ER3nD21ua04SvmnIWaY2RKt
+=ZFP8
+-----END PGP SIGNATURE-----

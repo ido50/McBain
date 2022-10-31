@@ -1,5 +1,6 @@
 package Wolfcastle::Math;
 
+use McBain::Mo;
 use McBain -contextual;
 
 get '/sum' => (
@@ -9,7 +10,7 @@ get '/sum' => (
 		two => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($c, $params) = @_;
+		my ($self, $c, $params) = @_;
 
 		return $params->{one} + $params->{two};
 	}
@@ -22,7 +23,7 @@ get '/diff' => (
 		two => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($c, $params) = @_;
+		my ($self, $c, $params) = @_;
 
 		if ($c->user->{name} eq 'ido') {
 			return 5;
@@ -39,7 +40,7 @@ get '/mult' => (
 		two => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($c, $params) = @_;
+		my ($self, $c, $params) = @_;
 
 		return $params->{one} * $params->{two};
 	}
@@ -51,11 +52,11 @@ post '/factorial' => (
 		num => { required => 1, integer => 1 }
 	},
 	cb => sub {
-		my ($c, $params) = @_;
+		my ($self, $c, $params) = @_;
 
-		return $params->{num} <= 1 ? 1 : $c->forward('GET:/math/mult', {
+		return $params->{num} <= 1 ? 1 : $self->call('GET:/math/mult', {
 			one => $params->{num},
-			two => $c->forward('POST:/math/factorial', { num => $params->{num} - 1 })
+			two => $self->call('POST:/math/factorial', { num => $params->{num} - 1 })
 		});
 	}
 );

@@ -1,5 +1,6 @@
 package Wolfcastle;
 
+use McBain::Mo;
 use McBain -contextual;
 
 get '/' => (
@@ -11,10 +12,8 @@ get '/' => (
 
 get '/status' => (
 	description => 'Returns the status of the API',
-	cb => sub { shift->status }
+	cb => sub { $_[1]->status }
 );
-
-sub new { bless {}, shift };
 
 1;
 __END__

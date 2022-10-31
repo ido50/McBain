@@ -1,10 +1,12 @@
 package Mendoza::Math::Constants;
 
+use McBain::Mo;
 use McBain;
 
 get '/' => (
+	description => 'Returns something from the parent and something from the root',
 	cb => sub {
-		return "I CAN HAZ CONSTANTS";
+		return $_[0]->status.', AND '.$_[0]->message;
 	}
 );
 

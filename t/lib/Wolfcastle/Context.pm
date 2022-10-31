@@ -1,31 +1,23 @@
 package Wolfcastle::Context;
 
-use warnings;
-use strict;
+use McBain::Mo;
 
-sub new { bless $_[1] || {}, $_[0] }
+has 'params';
 
-sub create_from_env {
-	my ($class, $runner, $env) = @_;
+has 'path';
 
-	$class->new({
-		params => $env->{PAYLOAD},
-		path => $env->{ROUTE},
-		method => $env->{METHOD},
-		user => {
-			name => 'ido',
-			email => 'my@email.com'
-		}
-	});
+has 'method';
+
+has 'user';
+
+sub process_env {
+	my ($self, $env) = @_;
+
+	$self->params($env->{PAYLOAD});
+	$self->path($env->{ROUTE});
+	$self->method($env->{METHOD});
+	$self->user({ name => 'ido', email => 'my@email.com' });
 }
-
-sub params { shift->{params} || {} }
-
-sub path { shift->{path} }
-
-sub method { shift->{method} }
-
-sub user { shift->{user} }
 
 sub status { 'ALL IS WELL' }
 

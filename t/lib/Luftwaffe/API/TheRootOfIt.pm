@@ -1,14 +1,19 @@
 package Luftwaffe::API::TheRootOfIt;
 
+use McBain::Mo;
 use McBain -contextual;
 
 get '/' => (
 	cb => sub {
-		return ref $_[0];
+		return ref $_[1];
 	}
 );
 
-sub new { bless {}, shift };
+get '/forward' => (
+	cb => sub {
+		$_[1]->forward('GET:/')
+	}
+);
 
 1;
 __END__
